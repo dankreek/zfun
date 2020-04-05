@@ -1,12 +1,20 @@
-from enum import Enum
+import enum
 from .util import read_word
+from .exc import UnsupportedVersionError
 from abc import ABC, abstractmethod
 
 HEADER_SIZE = 64
 
-class StatusLineType(Enum):
+
+class StatusLineType(enum.Enum):
     SCORE_TURNS = 0
     HOURS_MINUTES = 1
+
+    def __str__(self):
+        if self == StatusLineType.SCORE_TURNS:
+            return 'SCORE/TURNS'
+        else:
+            return 'HOURS/MINUTES'
 
 
 class ZCodeHeader(ABC):
@@ -26,11 +34,7 @@ class ZCodeHeader(ABC):
 
     @property
     def status_line_type(self) -> StatusLineType:
-        line_type_bit = self._data[1] and 0x02
-        if line_type_bit == 0:
-            return StatusLineType.SCORE_TURNS
-        else:
-            return StatusLineType.HOURS_MINUTES
+        raise UnsupportedVersionError(f'Not supported in version {self.version}')
 
     @property
     def release_number(self) -> int:
@@ -44,6 +48,21 @@ class ZCodeHeader(ABC):
     def first_instruction(self) -> int:
         return read_word(self._data, 6)
 
+    @property
+    def serial_code(self) -> str:
+        try:
+            code_bytes = self._data[0x12:0x18]
+            return code_bytes.decode('ascii')
+        except UnicodeDecodeError:
+            # Zork1 v2 doesn't seem to have this info, maybe all v2's don't?
+            return 'XXXXXX'
+
+    @property
+    @abstractmethod
+    def file_length(self) -> int:
+        """ Get the length of the file in bytes """
+        pass
+
 
 class ZCodeHeaderV2(ZCodeHeader):
     def __init__(self, data):
@@ -52,6 +71,11 @@ class ZCodeHeaderV2(ZCodeHeader):
     @property
     def version(self) -> int:
         return 2
+
+    @property
+    def file_length(self) -> int:
+        length = read_word(self._data, 0x1a)
+        return length * 2
 
 
 class ZCodeHeaderV3(ZCodeHeader):
@@ -62,6 +86,19 @@ class ZCodeHeaderV3(ZCodeHeader):
     def version(self) -> int:
         return 3
 
+    @property
+    def status_line_type(self) -> StatusLineType:
+        line_type_bit = self._data[1] and 0x02
+        if line_type_bit == 0:
+            return StatusLineType.SCORE_TURNS
+        else:
+            return StatusLineType.HOURS_MINUTES
+
+    @property
+    def file_length(self) -> int:
+        length = read_word(self._data, 0x1a)
+        return length * 2
+
 
 class ZCodeHeaderV5(ZCodeHeader):
     def __init__(self, data):
@@ -70,6 +107,12 @@ class ZCodeHeaderV5(ZCodeHeader):
     @property
     def version(self) -> int:
         return 5
+
+    @property
+    def file_length(self) -> int:
+        length = read_word(self._data, 0x1a)
+        return length * 4
+
 
 def get_header(data: bytes):
     version = ZCodeHeader.read_version(data)
