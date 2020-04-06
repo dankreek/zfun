@@ -8,7 +8,7 @@ def main(argv):
 
     try:
         print(f'Status line type={header.status_line_type}')
-    except NotImplementedError:
+    except zfun.UnsupportedVersionError:
         pass
 
     print(f'Release number={header.release_number}')

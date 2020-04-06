@@ -1,4 +1,6 @@
 import enum
+import io
+
 from .util import read_word
 from .exc import UnsupportedVersionError
 from abc import ABC, abstractmethod
@@ -18,11 +20,11 @@ class StatusLineType(enum.Enum):
 
 
 class ZCodeHeader(ABC):
-    def __init__(self, data):
-        self._data = data
+    def __init__(self, data: io.BytesIO):
+        self._view = data.getbuffer()
 
     @staticmethod
-    def read_version(data) -> int:
+    def read_version(data: bytes) -> int:
         """ Read the Z-Machine version from a Z-Code data """
         return int(data[0])
 
@@ -38,20 +40,20 @@ class ZCodeHeader(ABC):
 
     @property
     def release_number(self) -> int:
-        return read_word(self._data, 2)
+        return read_word(self._view, 2)
 
     @property
     def paged_memory_address(self) -> int:
-        return read_word(self._data, 4)
+        return read_word(self._view, 4)
 
     @property
     def first_instruction(self) -> int:
-        return read_word(self._data, 6)
+        return read_word(self._view, 6)
 
     @property
     def serial_code(self) -> str:
         try:
-            code_bytes = self._data[0x12:0x18]
+            code_bytes = bytes(self._view[0x12:0x18])
             return code_bytes.decode('ascii')
         except UnicodeDecodeError:
             # Zork1 v2 doesn't seem to have this info, maybe all v2's don't?
@@ -74,7 +76,7 @@ class ZCodeHeaderV2(ZCodeHeader):
 
     @property
     def file_length(self) -> int:
-        length = read_word(self._data, 0x1a)
+        length = read_word(self._view, 0x1a)
         return length * 2
 
 
@@ -88,7 +90,7 @@ class ZCodeHeaderV3(ZCodeHeader):
 
     @property
     def status_line_type(self) -> StatusLineType:
-        line_type_bit = self._data[1] and 0x02
+        line_type_bit = self._view[1] and 0x02
         if line_type_bit == 0:
             return StatusLineType.SCORE_TURNS
         else:
@@ -96,7 +98,7 @@ class ZCodeHeaderV3(ZCodeHeader):
 
     @property
     def file_length(self) -> int:
-        length = read_word(self._data, 0x1a)
+        length = read_word(self._view, 0x1a)
         return length * 2
 
 
@@ -110,19 +112,20 @@ class ZCodeHeaderV5(ZCodeHeader):
 
     @property
     def file_length(self) -> int:
-        length = read_word(self._data, 0x1a)
+        length = read_word(self._view, 0x1a)
         return length * 4
 
 
 def get_header(data: bytes):
     version = ZCodeHeader.read_version(data)
+    bytes_io = io.BytesIO(data)
 
     if version == 2:
-        return ZCodeHeaderV2(data)
+        return ZCodeHeaderV2(bytes_io)
     elif version == 3:
-        return ZCodeHeaderV3(data)
+        return ZCodeHeaderV3(bytes_io)
     elif version == 5:
-        return ZCodeHeaderV5(data)
+        return ZCodeHeaderV5(bytes_io)
     else:
         raise NotImplementedError(f'Support for version {version} not implemented')
 
