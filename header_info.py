@@ -15,7 +15,11 @@ def main(argv):
     print(f'Paged memory address={hex(header.paged_memory_address)}')
     print(f'First instruction={hex(header.first_instruction)}')
     print(f'Serial code={header.serial_code}')
-    print(f'File length={header.file_length}')
+
+    try:
+        print(f'File length={header.file_length}')
+    except zfun.UnsupportedVersionError:
+        pass
 
 
 if __name__ == '__main__':
