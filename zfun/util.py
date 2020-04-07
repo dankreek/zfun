@@ -17,9 +17,9 @@ def set_bit(memory: memoryview, offset: int, bit_num: int, is_set: bool):
     :param is_set: True if but should be set to 1, False if it should be st to 0
     """
     if is_set:
-        memory[offset] = bytes([memory[offset] or (1 << bit_num)])
+        memory[offset] = memory[offset] or (1 << bit_num)
     else:
-        memory[offset] = bytes([memory[offset] and ~(1 << bit_num)])
+        memory[offset] = memory[offset] and ~(1 << bit_num)
 
 
 def is_bit_set(memory: memoryview, offset: int, bit_num: int) -> bool:

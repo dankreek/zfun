@@ -60,17 +60,18 @@ class ZCodeHeader(ABC):
         """ Get the Z-Machine version"""
         pass
 
+    # Flags 1 for versions 1-3
     @property
     def status_line_type(self) -> StatusLineType:
         raise UnsupportedVersionError(f'status_line_type not supported in version {self.version}')
 
     @property
-    def is_censored_mode(self) -> bool:
-        raise UnsupportedVersionError(f'is_censored_mode not supported in version {self.version}')
+    def is_file_split(self) -> bool:
+        raise UnsupportedVersionError(f'is_file_split not supported in version {self.version}')
 
-    @is_censored_mode.setter
-    def is_censored_mode(self, is_censored: bool):
-        raise UnsupportedVersionError(f'is_censored_mode not supported in version {self.version}')
+    @is_file_split.setter
+    def is_file_split(self, is_censored: bool):
+        raise UnsupportedVersionError(f'is_file_split not supported in version {self.version}')
 
     @property
     def is_status_line_unavailable(self) -> bool:
@@ -81,12 +82,12 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'is_status_line_unavailable not supported in version {self.version}')
 
     @property
-    def is_upper_window_available(self) -> bool:
-        raise UnsupportedVersionError(f'is_upper_window_available not supported in version {self.version}')
+    def is_screen_splitting_available(self) -> bool:
+        raise UnsupportedVersionError(f'is_screen_splitting_available not supported in version {self.version}')
 
-    @is_upper_window_available.setter
-    def is_upper_window_available(self, is_available: bool):
-        raise UnsupportedVersionError(f'is_upper_window_available not supported in version {self.version}')
+    @is_screen_splitting_available.setter
+    def is_screen_splitting_available(self, is_available: bool):
+        raise UnsupportedVersionError(f'is_screen_splitting_available not supported in version {self.version}')
 
     @property
     def is_default_font_variable_width(self) -> bool:
@@ -96,6 +97,7 @@ class ZCodeHeader(ABC):
     def is_default_font_variable_width(self, is_var_width: bool):
         raise UnsupportedVersionError(f'is_default_font_variable_width not supported in version {self.version}')
 
+    # Flags 1 for version 4+
     @property
     def is_color_available(self) -> bool:
         raise UnsupportedVersionError(f'is_color_available not supported in version {self.version}')
@@ -103,14 +105,6 @@ class ZCodeHeader(ABC):
     @is_color_available.setter
     def is_color_available(self, is_color_supported: bool):
         raise UnsupportedVersionError(f'is_color_available not supported in version {self.version}')
-
-    @property
-    def is_inverse_video_available(self) -> bool:
-        raise UnsupportedVersionError(f'is_inverse_video_available not supported in version {self.version}')
-
-    @is_inverse_video_available.setter
-    def is_inverse_video_available(self, inverse_available: bool):
-        raise UnsupportedVersionError(f'is_inverse_video_available not supported in version {self.version}')
 
     @property
     def is_picture_display_available(self) -> bool:
@@ -129,12 +123,12 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'is_bold_style_available not supported in version {self.version}')
 
     @property
-    def is_emphasis_style_available(self) -> bool:
-        raise UnsupportedVersionError(f'is_emphasis_style_available not supported in version {self.version}')
+    def is_italic_style_available(self) -> bool:
+        raise UnsupportedVersionError(f'is_italic_style_available not supported in version {self.version}')
 
-    @is_emphasis_style_available.setter
-    def is_emphasis_style_available(self, emphasis_available: bool):
-        raise UnsupportedVersionError(f'is_emphasis_style_available not supported in version {self.version}')
+    @is_italic_style_available.setter
+    def is_italic_style_available(self, emphasis_available: bool):
+        raise UnsupportedVersionError(f'is_italic_style_available not supported in version {self.version}')
 
     @property
     def is_fixed_style_available(self) -> bool:
@@ -153,16 +147,25 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'is_sound_available not supported in version {self.version}')
 
     @property
-    def release_number(self) -> int:
-        return read_word(self._view, 2)
+    def is_timed_keyboard_input_available(self) -> bool:
+        raise UnsupportedVersionError(f'is_timed_keyboard_input_available not supported in version {self.version}')
+
+    @is_timed_keyboard_input_available.setter
+    def is_timed_keyboard_input_available(self, timed_input: bool):
+        raise UnsupportedVersionError(f'is_timed_keyboard_input_available not supported in version {self.version}')
 
     @property
-    def paged_memory_address(self) -> int:
+    def high_memory_address(self) -> int:
         return read_word(self._view, 4)
 
+    # These next two occupy the same word depending on version
     @property
-    def first_instruction(self) -> int:
+    def initial_pc_value(self) -> int:
         return read_word(self._view, 6)
+
+    @property
+    def initial_main_routine_address(self) -> int:
+        raise UnsupportedVersionError(f'initial_main_route_address is not supported in version {self.version}')
 
     @property
     def dictionary_address(self) -> int:
@@ -173,13 +176,14 @@ class ZCodeHeader(ABC):
         return read_word(self._view, 0x0a)
 
     @property
-    def global_vars_address(self) -> int:
+    def global_var_table_address(self) -> int:
         return read_word(self._view, 0x0c)
 
     @property
     def static_memory_address(self) -> int:
         return read_word(self._view, 0x0e)
 
+    # Flags 2
     @property
     def is_transcription_on(self) -> bool:
         return is_bit_set(self._view, 0x10, 0)
@@ -197,12 +201,12 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'is_fixed_width_forced is not supported in version {self.version}')
 
     @property
-    def must_redraw_status_line(self) -> bool:
-        raise UnsupportedVersionError(f'must_redraw_status_line is not supported in version {self.version}')
+    def req_status_line_redraw(self) -> bool:
+        raise UnsupportedVersionError(f'req_status_line_redraw is not supported in version {self.version}')
 
-    @must_redraw_status_line.setter
-    def must_redraw_status_line(self, redraw: bool):
-        raise UnsupportedVersionError(f'must_redraw_status_line is not supported in version {self.version}')
+    @req_status_line_redraw.setter
+    def req_status_line_redraw(self, redraw: bool):
+        raise UnsupportedVersionError(f'req_status_line_redraw is not supported in version {self.version}')
 
     @property
     def want_to_use_pictures(self) -> bool:
@@ -213,12 +217,12 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'want_to_use_pictures is not supported in version {self.version}')
 
     @property
-    def want_to_use_undo(self) -> bool:
-        raise UnsupportedVersionError(f'want_to_use_undo is not supported in version {self.version}')
+    def want_to_use_undo_opcodes(self) -> bool:
+        raise UnsupportedVersionError(f'want_to_use_undo_opcodes is not supported in version {self.version}')
 
-    @want_to_use_undo.setter
-    def want_to_use_undo(self, use_undo: bool):
-        raise UnsupportedVersionError(f'want_to_use_undo is not supported in version {self.version}')
+    @want_to_use_undo_opcodes.setter
+    def want_to_use_undo_opcodes(self, use_undo: bool):
+        raise UnsupportedVersionError(f'want_to_use_undo_opcodes is not supported in version {self.version}')
 
     @property
     def want_to_use_mouse(self) -> bool:
@@ -327,8 +331,8 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'routines_offset is not supported by version {self.version}')
 
     @property
-    def string_offset(self) -> int:
-        raise UnsupportedVersionError(f'string_offset is not supported by version {self.version}')
+    def static_strings_offset(self) -> int:
+        raise UnsupportedVersionError(f'static_strings_offset is not supported by version {self.version}')
 
     @property
     def default_background_color(self) -> ZMachineColor:
@@ -347,6 +351,10 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'default_foreground_color is not supported by version {self.version}')
 
     @property
+    def terminating_chars_table_address(self) -> int:
+        raise UnsupportedVersionError(f'terminating_chars_table_address is not supported by version {self.version}')
+
+    @property
     def output_stream3_text_width(self) -> int:
         raise UnsupportedVersionError(f'output_stream3_text_width is not supported by version {self.version}')
 
@@ -355,8 +363,8 @@ class ZCodeHeader(ABC):
         raise UnsupportedVersionError(f'output_stream3_text_width is not supported by version {self.version}')
 
     @property
-    def terminating_chars_table(self) -> int:
-        raise UnsupportedVersionError(f'terminating_chars_table is not supported by version {self.version}')
+    def std_rev_number(self) -> int:
+        return read_word(self._view, 0x32)
 
     @property
     def alt_char_set_address(self) -> int:
@@ -365,14 +373,6 @@ class ZCodeHeader(ABC):
     @property
     def extension_table_address(self) -> int:
         raise UnsupportedVersionError(f'extension_table_address is not supported by version {self.version}')
-
-    @property
-    def player_login_name(self) -> str:
-        raise UnsupportedVersionError(f'player_login_name is not supported by version {self.version}')
-
-    @player_login_name.setter
-    def player_login_name(self, login_name: str):
-        raise UnsupportedVersionError(f'player_login_name is not supported by version {self.version}')
 
 
 class ZCodeHeaderV2(ZCodeHeader):
@@ -394,19 +394,50 @@ class ZCodeHeaderV3(ZCodeHeaderV2):
 
     @property
     def status_line_type(self) -> StatusLineType:
-        line_type_bit = self._view[1] and 0x02
-        if line_type_bit == 0:
+        if is_bit_set(self._view, 1, 1):
             return StatusLineType.SCORE_TURNS
         else:
             return StatusLineType.HOURS_MINUTES
 
     @property
-    def is_censored_mode(self) -> bool:
-        return is_bit_set(self._view, 1, 3)
+    def is_file_split(self) -> bool:
+        return is_bit_set(self._view, 1, 2)
 
-    @is_censored_mode.setter
-    def is_censored_mode(self, is_censored: bool):
-        set_bit(self._view, 1, 3, is_censored)
+    @is_file_split.setter
+    def is_file_split(self, is_split: bool):
+        set_bit(self._view, 1, 2, is_split)
+
+    @property
+    def is_status_line_unavailable(self) -> bool:
+        return is_bit_set(self._view, 1, 4)
+
+    @is_status_line_unavailable.setter
+    def is_status_line_unavailable(self, available: bool):
+        set_bit(self._view, 1, 4, available)
+
+    @property
+    def is_screen_splitting_available(self) -> bool:
+        return is_bit_set(self._view, 1, 5)
+
+    @is_screen_splitting_available.setter
+    def is_screen_splitting_available(self, screen_splitting: bool):
+        set_bit(self._view, 1, 5, screen_splitting)
+
+    @property
+    def is_default_font_variable_width(self) -> bool:
+        return is_bit_set(self._view, 1, 6)
+
+    @is_default_font_variable_width.setter
+    def is_default_font_variable_width(self, var_width: bool):
+        set_bit(self._view, 1, 6, var_width)
+
+    @property
+    def is_fixed_width_forced(self) -> bool:
+        return is_bit_set(self._view, 0x10, 1)
+
+    @is_fixed_width_forced.setter
+    def is_fixed_width_forced(self, forced: bool):
+        set_bit(self._view, 0x10, 1, forced)
 
     @property
     def file_length(self) -> int:
@@ -440,7 +471,7 @@ class ZCodeHeaderV4(ZCodeHeaderV3):
         raise UnsupportedVersionError(f'is_censored_mode is not available in version {self.version}')
 
     @is_censored_mode.setter
-    def is_censored_mode(self, is_censored: bool):
+    def is_file_split(self, is_split: bool):
         raise UnsupportedVersionError(f'is_censored_mode is not available in version {self.version}')
 
 
@@ -453,7 +484,7 @@ class ZCodeHeaderV5(ZCodeHeaderV4):
         return 5
 
     @property
-    def terminating_chars_table(self) -> int:
+    def terminating_chars_table_address(self) -> int:
         return read_word(self._view, 0x2e)
 
     @property
@@ -474,6 +505,15 @@ class ZCodeHeaderV6(ZCodeHeaderV5):
         return 6
 
     @property
+    def initial_pc_value(self) -> int:
+        raise UnsupportedVersionError(f'initial_pc_value not supported in version {self.version}, use initial_main_routine_address')
+
+    @property
+    def initial_main_routine_address(self) -> int:
+        # XXX: return the unpacked address
+        pass
+
+    @property
     def file_length(self) -> int:
         length = read_word(self._view, 0x1a)
         return length * 8
@@ -483,7 +523,7 @@ class ZCodeHeaderV6(ZCodeHeaderV5):
         return read_word(self._view, 0x28) * 8
 
     @property
-    def string_offset(self) -> int:
+    def static_strings_offset(self) -> int:
         return read_word(self._view, 0x2a) * 8
 
 
