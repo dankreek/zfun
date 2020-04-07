@@ -13,6 +13,10 @@ def main(argv):
 
     print(f'Release number={header.release_number}')
     print(f'Paged memory address={hex(header.paged_memory_address)}')
+    print(f'Dictionary address={hex(header.dictionary_address)}')
+    print(f'Object table address={hex(header.object_table_address)}')
+    print(f'Global vars address={hex(header.global_vars_address)}')
+    print(f'Static memory address={hex(header.static_memory_address)}')
     print(f'First instruction={hex(header.first_instruction)}')
     print(f'Serial code={header.serial_code}')
 

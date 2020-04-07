@@ -8,18 +8,18 @@ def read_word(memory: memoryview, offset: int):
     return int(memory[offset]) * 256 + int(memory[offset+1])
 
 
-def set_bit(memory: memoryview, offset: int, bit_num: int, is_bit_set: bool):
+def set_bit(memory: memoryview, offset: int, bit_num: int, is_set: bool):
     """ Set a bit in a byte inside of a memoryview
 
     :param memory: memory container
     :param offset: offset from beginning of memoryview in bytes
     :param bit_num: bit number to set
-    :param is_bit_set: True if but should be set to 1, False if it should be st to 0
+    :param is_set: True if but should be set to 1, False if it should be st to 0
     """
-    if is_bit_set:
-        memory[offset] = memory[offset] or (1 << bit_num)
+    if is_set:
+        memory[offset] = bytes([memory[offset] or (1 << bit_num)])
     else:
-        memory[offset] = memory[offset] and ~(1 << bit_num)
+        memory[offset] = bytes([memory[offset] and ~(1 << bit_num)])
 
 
 def is_bit_set(memory: memoryview, offset: int, bit_num: int) -> bool:

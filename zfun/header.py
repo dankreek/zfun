@@ -401,6 +401,14 @@ class ZCodeHeaderV3(ZCodeHeaderV2):
             return StatusLineType.HOURS_MINUTES
 
     @property
+    def is_censored_mode(self) -> bool:
+        return is_bit_set(self._view, 1, 3)
+
+    @is_censored_mode.setter
+    def is_censored_mode(self, is_censored: bool):
+        set_bit(self._view, 1, 3, is_censored)
+
+    @property
     def file_length(self) -> int:
         length = read_word(self._view, 0x1a)
         return length * 2
@@ -425,7 +433,15 @@ class ZCodeHeaderV4(ZCodeHeaderV3):
 
     @property
     def status_line_type(self) -> StatusLineType:
-        raise UnsupportedVersionError(f'status_line_type not supported in version {self.version}')
+        raise UnsupportedVersionError(f'status_line_type is not supported in version {self.version}')
+
+    @property
+    def is_censored_mode(self) -> bool:
+        raise UnsupportedVersionError(f'is_censored_mode is not available in version {self.version}')
+
+    @is_censored_mode.setter
+    def is_censored_mode(self, is_censored: bool):
+        raise UnsupportedVersionError(f'is_censored_mode is not available in version {self.version}')
 
 
 class ZCodeHeaderV5(ZCodeHeaderV4):
