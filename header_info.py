@@ -9,13 +9,21 @@ def main(argv):
     if header.version == 3:
         print(f'Status line type={header.status_line_type}')
         print(f'File split? {header.is_file_split}')
-        print(f'High memory address={hex(header.high_memory_address)}')
-        print(f'First instruction={hex(header.initial_pc_value)}')
-        print(f'Dictionary address={hex(header.dictionary_address)}')
+
+        print(f'Abbreviations table address={hex(header.abbreviations_table_address)}')
         print(f'Object table address={hex(header.object_table_address)}')
         print(f'Global vars address={hex(header.global_var_table_address)}')
+
+        print()
         print(f'Static memory address={hex(header.static_memory_address)}')
-        print(f'Abbreviations table address={hex(header.abbreviations_table_address)}')
+        print('--------')
+        print(f'Dictionary address={hex(header.dictionary_address)}')
+
+        print()
+        print(f'High memory address={hex(header.high_memory_address)}')
+        print('--------')
+
+        print(f'First instruction={hex(header.initial_pc_value)}')
         print(f'File length={header.file_length}')
         print(f'Rev #{header.std_rev_number}')
 
