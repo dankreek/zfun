@@ -5,6 +5,11 @@ from typing import List
 
 from .util import is_bit_set, read_word
 
+ABBREV_TBL_1 = 1
+ABBREV_TBL_2 = 2
+ABBREV_TBL_3 = 3
+SHIFT_TO_A1 = 4
+SHIFT_TO_A2 = 5
 
 a2_table = [
     -1, -1, -1, -1,
@@ -57,10 +62,13 @@ def z_string_to_ascii(memory, str_offset: int, abbrev_table_offset: int = None) 
         zchars=None,
         zchars_idx=3,
         # list of ints containing ASCII characters
-        output=[],
         abbrev_idx=None,
+        # flag indicating that a literal ZSCII code is being read
         reading_zscii=False,
-        zscii_codes=None
+        # list of z-chars which make up the 10-bit ZSCII character code
+        zscii_codes=None,
+        # list of ASCII character codes to be output
+        output=[]
     )
 
     while not (state['stop'] and (state['zchars_idx'] > 2)):
@@ -103,13 +111,19 @@ def z_string_to_ascii(memory, str_offset: int, abbrev_table_offset: int = None) 
                     zscii_codes=None
                 )
         elif state['abbrev_idx']:
-            full_abbrev_idx = state['abbrev_idx'] + zchar
-            # XXX: do a recursive call for abbreviation but leave abbrev_table_offset at None
-            state['abbrev_idx'] = None
-            raise NotImplemented('abbreviations not yet supported')
+            if abbrev_table_offset is None:
+                # XXX: make a real exception
+                raise RuntimeError('No abbrevition table supplied')
+            else:
+                full_abbrev_idx = ((state['abbrev_idx'] - 1) * 32) + zchar
+                state['output'].extend(abbreviation_to_ascii(memory, abbrev_table_offset, full_abbrev_idx))
+                state['abbrev_idx'] = None
         elif 1 <= zchar <= 3:
-            state['abbrev_idx'] = zchar
-            raise NotImplemented('abbreviations not yet supported')
+            if abbrev_table_offset is None:
+                # XXX: make a real exception
+                raise RuntimeError('No abbrevition table supplied')
+            else:
+                state['abbrev_idx'] = zchar
         elif zchar == 4:
             state['alphabet'] = ZStringAlphabet.A1
         elif zchar == 5:
@@ -149,8 +163,40 @@ def abbreviation_to_ascii(memory, abbrev_table_addr: int, abbrev_index: int) -> 
     return z_string_to_ascii(memory, word_ptr)
 
 
-def z_string_to_str(memory, str_offset: int, abbrev_table_offset: int = None) -> str:
-    return bytes(z_string_to_ascii(memory, str_offset, abbrev_table_offset)).decode('ascii')
+def z_string_to_str(memory, str_addr: int, abbrev_table_addr: int = None) -> str:
+    """ Convert a z-string to a Python string.
+
+    :param memory:
+    :param str_addr:
+    :param abbrev_table_addr:
+    :return: Z-string converted to a Python string
+    """
+    return bytes(z_string_to_ascii(memory, str_addr, abbrev_table_addr)).decode('ascii')
+
+
+def pack_z_chars(z_chars: List[int]) -> List[int]:
+    """ Given a list of z-chars pack them into a properly terminated z-string.
+
+    This function packs all the 5-bit z-chars into a list of 8-bit bytes, and
+    adds the terminator bit to the 15th bit of the last word.
+
+    :param z_chars:
+    :return: Terminated z-string
+    """
+    # Put all characters in groups of 3, using 0x04 as a padding character
+    # XXX: add constants for control z-chars
+    groups = zip_longest(*([iter(z_chars)] * 3), fillvalue=4)
+    output = []
+
+    for group in groups:
+        output.append(((group[0] << 2) & 0xff) | (group[1] >> 3))
+        output.append(((group[1] << 5) & 0xff) | group[2])
+
+    # set termination bit on last word
+    hi_byte_i = len(output) - 2
+    output[hi_byte_i] = output[hi_byte_i] + 0x80
+
+    return output
 
 
 def z_string(pystring: str) -> bytes:
@@ -177,18 +223,6 @@ def z_string(pystring: str) -> bytes:
                 else:
                     raise ValueError(f'Could not translate char "{char}" into z-string char')
 
-    # Put all characters in groups of 3, using 0x04 as a padding character
-    groups = zip_longest(*([iter(z_chars)] * 3), fillvalue=4)
-
-    output = []
-    for group in groups:
-        output.append(((group[0] << 2) & 0xff) | (group[1] >> 3))
-        output.append(((group[1] << 5) & 0xff) | group[2])
-
-    # set termination bit on last word
-    hi_byte_i = len(output) - 2
-    output[hi_byte_i] = output[hi_byte_i] + 0x80
-
-    # pack the z_chars into a byte array and return it
+    output = pack_z_chars(z_chars)
     return bytes(output)
 
