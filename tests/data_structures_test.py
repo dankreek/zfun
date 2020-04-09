@@ -7,7 +7,7 @@ def test_z_string():
 
 
 def test_lowercase_single_word():
-    test_str = 'a!aaA#'
+    test_str = '%a!aaA#q=%'
     test_z_str = z_string(test_str)
     output = parse_z_string(test_z_str, 0)
 

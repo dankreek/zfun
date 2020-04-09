@@ -5,7 +5,7 @@ def read_word(memory: memoryview, offset: int):
     :param offset: offset of the word inside of the memoryview
     :return: 16 bit word value located in memory at given offset
     """
-    return int(memory[offset]) * 256 + int(memory[offset+1])
+    return (memory[offset] << 8) | memory[offset+1]
 
 
 def set_bit(memory: memoryview, offset: int, bit_num: int, is_set: bool):

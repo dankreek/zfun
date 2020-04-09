@@ -527,6 +527,7 @@ class ZCodeHeaderV6(ZCodeHeaderV5):
         return read_word(self._view, 0x2a) * 8
 
 
+# XXX: make up better names for read_header and get_header
 def get_header(data: bytes):
     version = ZCodeHeader.read_version(data)
     bytes_io = io.BytesIO(data)
