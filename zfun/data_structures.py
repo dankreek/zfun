@@ -149,7 +149,7 @@ def abbreviation_to_ascii(memory, abbrev_table_addr: int, abbrev_index: int) -> 
     return z_string_to_ascii(memory, word_ptr)
 
 
-def parse_z_string(memory, str_offset: int, abbrev_table_offset: int = None) -> str:
+def z_string_to_str(memory, str_offset: int, abbrev_table_offset: int = None) -> str:
     return bytes(z_string_to_ascii(memory, str_offset, abbrev_table_offset)).decode('ascii')
 
 

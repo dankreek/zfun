@@ -1,4 +1,4 @@
-from zfun import parse_z_string, z_string
+from zfun import z_string_to_str, z_string
 
 
 def test_z_string():
@@ -9,7 +9,7 @@ def test_z_string():
 def test_lowercase_single_word():
     test_str = '%a!aaA#q=%'
     test_z_str = z_string(test_str)
-    output = parse_z_string(test_z_str, 0)
+    output = z_string_to_str(test_z_str, 0)
 
     assert output == test_str
 

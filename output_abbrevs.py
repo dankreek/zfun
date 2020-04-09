@@ -2,7 +2,7 @@ import sys
 from typing import Tuple
 
 
-from zfun import get_header, parse_z_string, ZCodeHeader, abbreviation_to_ascii
+from zfun import get_header, z_string_to_str, ZCodeHeader, abbreviation_to_ascii
 
 
 def header_and_data(file_path: str) -> Tuple[ZCodeHeader, bytes]:
