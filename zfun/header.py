@@ -46,11 +46,11 @@ class ZMachineColor(enum.Enum):
 
 
 class ZCodeHeader(ABC):
-    def __init__(self, data: io.BytesIO):
-        self._view = data.getbuffer()
+    def __init__(self, view: memoryview):
+        self._view = view
 
     @staticmethod
-    def read_version(data: bytes) -> int:
+    def read_version(data: Union[memoryview, bytes]) -> int:
         """ Read the Z-Machine version from a Z-Code data """
         return int(data[0])
 
@@ -376,8 +376,8 @@ class ZCodeHeader(ABC):
 
 
 class ZCodeHeaderV2(ZCodeHeader):
-    def __init__(self, data: io.BytesIO):
-        super().__init__(data)
+    def __init__(self, view: memoryview):
+        super().__init__(view)
 
     @property
     def version(self) -> int:
@@ -385,8 +385,8 @@ class ZCodeHeaderV2(ZCodeHeader):
 
 
 class ZCodeHeaderV3(ZCodeHeaderV2):
-    def __init__(self, data: io.BytesIO):
-        super().__init__(data)
+    def __init__(self, view: memoryview):
+        super().__init__(view)
 
     @property
     def version(self) -> int:
@@ -450,8 +450,8 @@ class ZCodeHeaderV3(ZCodeHeaderV2):
 
 
 class ZCodeHeaderV4(ZCodeHeaderV3):
-    def __init__(self, data: io.BytesIO):
-        super().__init__(data)
+    def __init__(self, view: memoryview):
+        super().__init__(view)
 
     @property
     def version(self) -> int:
@@ -476,8 +476,8 @@ class ZCodeHeaderV4(ZCodeHeaderV3):
 
 
 class ZCodeHeaderV5(ZCodeHeaderV4):
-    def __init__(self, data: io.BytesIO):
-        super().__init__(data)
+    def __init__(self, view: memoryview):
+        super().__init__(view)
 
     @property
     def version(self) -> int:
@@ -497,8 +497,8 @@ class ZCodeHeaderV5(ZCodeHeaderV4):
 
 
 class ZCodeHeaderV6(ZCodeHeaderV5):
-    def __init__(self, data: io.BytesIO):
-        super().__init__(data)
+    def __init__(self, view: memoryview):
+        super().__init__(view)
 
     @property
     def version(self) -> int:
@@ -528,20 +528,19 @@ class ZCodeHeaderV6(ZCodeHeaderV5):
 
 
 # XXX: make up better names for read_header and get_header
-def get_header(data: bytes):
-    version = ZCodeHeader.read_version(data)
-    bytes_io = io.BytesIO(data)
+def get_header(data_view: Union[memoryview, bytes]):
+    version = ZCodeHeader.read_version(data_view)
 
     if version == 2:
-        return ZCodeHeaderV2(bytes_io)
+        return ZCodeHeaderV2(data_view)
     elif version == 3:
-        return ZCodeHeaderV3(bytes_io)
+        return ZCodeHeaderV3(data_view)
     elif version == 4:
-        return ZCodeHeaderV4(bytes_io)
+        return ZCodeHeaderV4(data_view)
     elif version == 5:
-        return ZCodeHeaderV5(bytes_io)
+        return ZCodeHeaderV5(data_view)
     elif version == 6:
-        return ZCodeHeaderV6(bytes_io)
+        return ZCodeHeaderV6(data_view)
     else:
         raise UnsupportedVersionError(f'Support for version {version} not implemented')
 
@@ -553,5 +552,5 @@ def read_header(file: str) -> ZCodeHeader:
     :return:
     """
     with open(file, 'rb') as f:
-        data = f.read(HEADER_SIZE)
+        data = io.BytesIO(f.read(HEADER_SIZE)).getbuffer()
         return get_header(data)
