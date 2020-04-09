@@ -10,6 +10,7 @@ ABBREV_TBL_2 = 2
 ABBREV_TBL_3 = 3
 SHIFT_TO_A1 = 4
 SHIFT_TO_A2 = 5
+ZSCII_LITERAL = 6
 
 a2_table = [
     -1, -1, -1, -1,
@@ -118,17 +119,17 @@ def z_string_to_ascii(memory, str_offset: int, abbrev_table_offset: int = None) 
                 full_abbrev_idx = ((state['abbrev_idx'] - 1) * 32) + zchar
                 state['output'].extend(abbreviation_to_ascii(memory, abbrev_table_offset, full_abbrev_idx))
                 state['abbrev_idx'] = None
-        elif 1 <= zchar <= 3:
+        elif ABBREV_TBL_1 <= zchar <= ABBREV_TBL_3:
             if abbrev_table_offset is None:
                 # XXX: make a real exception
                 raise RuntimeError('No abbrevition table supplied')
             else:
                 state['abbrev_idx'] = zchar
-        elif zchar == 4:
+        elif zchar == SHIFT_TO_A1:
             state['alphabet'] = ZStringAlphabet.A1
-        elif zchar == 5:
+        elif zchar == SHIFT_TO_A2:
             state['alphabet'] = ZStringAlphabet.A2
-        elif (zchar == 6) and (state['alphabet'] == ZStringAlphabet.A2):
+        elif (zchar == ZSCII_LITERAL) and (state['alphabet'] == ZStringAlphabet.A2):
             state.update(
                 reading_zscii=True,
                 zscii_codes=[]
@@ -209,17 +210,17 @@ def z_string(pystring: str) -> bytes:
             z_chars.append(ord(char) - ord('a') + 6)
         elif ord('A') <= ord(char) <= ord('Z'):
             # Alphabet A1 (uppercase)
-            z_chars += [4, ord(char) - ord('A') + 6]
+            z_chars += [SHIFT_TO_A1, ord(char) - ord('A') + 6]
         else:
             # Alphabet A2 (symbols and digits)
             try:
                 char_idx = a2_table.index(ord(char))
-                z_chars += [5, char_idx]
+                z_chars += [SHIFT_TO_A2, char_idx]
             except ValueError:
                 if 32 <= ord(char) <= 126:
                     # Two z-chars after 6 are the high 5 bits and low 5 bits of the ascii code
                     ascii_code = ord(char)
-                    z_chars += [5, 6, ascii_code >> 5, ascii_code & 0x1f]
+                    z_chars += [SHIFT_TO_A2, ZSCII_LITERAL, ascii_code >> 5, ascii_code & 0x1f]
                 else:
                     raise ValueError(f'Could not translate char "{char}" into z-string char')
 

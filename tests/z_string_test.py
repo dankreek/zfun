@@ -6,6 +6,7 @@ def test_z_string():
     assert val == bytes([0x98, 0xc6])
 
 
+# XXX: Test all cases other than abbreviations
 def test_lowercase_single_word():
     test_str = '%a!aaA#q=%'
     test_z_str = z_string(test_str)
@@ -13,4 +14,4 @@ def test_lowercase_single_word():
 
     assert output == test_str
 
-
+# XXX: Test abbreviations
