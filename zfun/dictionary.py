@@ -11,11 +11,12 @@ class DictionaryEntry(NamedTuple):
 
 
 class Dictionary:
-    def __init__(self, memory: memoryview, header: ZCodeHeader):
-        """ Z-Machine dictionary functionality
+    """ Z-Machine dictionary functionality """
 
+    def __init__(self, memory: memoryview, header: ZCodeHeader):
+        """
         :param memory: Memory to read dictionary from
-        :param table_addr: Address of the dictionary table in memory
+        :param header: Z-Code header for the story
         """
         self._memory = memory
         self._addr = header.dictionary_address
@@ -32,6 +33,7 @@ class Dictionary:
 
     @property
     def word_separators(self) -> List[int]:
+        """ List of ZSCII input codes which are considered word separators """
         return [
             self._memory[self._addr + 1 + i]
             for i in range(self._separators_len)
@@ -39,12 +41,14 @@ class Dictionary:
 
     @property
     def number_of_entries(self) -> int:
+        """ Number of dictionary entries """
         return read_word(self._memory, self._addr + 1 + self._separators_len + 1)
 
     @property
     def encoded_text_len(self) -> int:
         """ Length (in bytes) of the encoded text for a dictionary entry for the Z-machine version """
 
+        # TODO: Should this be set as an abstract implementation for clarity later?
         # Version 1-3 have 3 byte (4 z-chars) encoded text length
         if self._version <= 3:
             return 4
@@ -53,6 +57,11 @@ class Dictionary:
             return 6
 
     def entry(self, entry_num: int) -> DictionaryEntry:
+        """ Get dictionary entry
+
+        :param entry_num: Dictionary entry number
+        :return: The text of the dictionary word and its associated data
+        """
         assert entry_num >= 0
 
         if entry_num >= self.number_of_entries:
