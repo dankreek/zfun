@@ -4,6 +4,7 @@ from enum import Enum
 from typing import List
 
 from .util import is_bit_set, read_word
+from .exc import ZStringParseException
 
 ABBREV_TBL_1 = 1
 ABBREV_TBL_2 = 2
@@ -113,16 +114,14 @@ def z_string_to_ascii(memory, str_offset: int, abbrev_table_offset: int = None) 
                 )
         elif state['abbrev_idx']:
             if abbrev_table_offset is None:
-                # XXX: make a real exception
-                raise RuntimeError('No abbrevition table supplied')
+                raise ZStringParseException('No abbreviation table supplied')
             else:
                 full_abbrev_idx = ((state['abbrev_idx'] - 1) * 32) + zchar
                 state['output'].extend(abbreviation_to_ascii(memory, abbrev_table_offset, full_abbrev_idx))
                 state['abbrev_idx'] = None
         elif ABBREV_TBL_1 <= zchar <= ABBREV_TBL_3:
             if abbrev_table_offset is None:
-                # XXX: make a real exception
-                raise RuntimeError('No abbrevition table supplied')
+                raise ZStringParseException('No abbreviation table supplied')
             else:
                 state['abbrev_idx'] = zchar
         elif zchar == SHIFT_TO_A1:
@@ -185,8 +184,7 @@ def pack_z_chars(z_chars: List[int]) -> List[int]:
     :return: Terminated z-string
     """
     # Put all characters in groups of 3, using 0x04 as a padding character
-    # XXX: add constants for control z-chars
-    groups = zip_longest(*([iter(z_chars)] * 3), fillvalue=4)
+    groups = zip_longest(*([iter(z_chars)] * 3), fillvalue=SHIFT_TO_A2)
     output = []
 
     for group in groups:

@@ -46,8 +46,8 @@ class ZMachineColor(enum.Enum):
 
 
 class ZCodeHeader(ABC):
-    def __init__(self, view: memoryview):
-        self._view = view
+    def __init__(self, memory: memoryview):
+        self._view = memory
 
     @staticmethod
     def read_version(data: Union[memoryview, bytes]) -> int:
@@ -376,8 +376,8 @@ class ZCodeHeader(ABC):
 
 
 class ZCodeHeaderV2(ZCodeHeader):
-    def __init__(self, view: memoryview):
-        super().__init__(view)
+    def __init__(self, memory: memoryview):
+        super().__init__(memory)
 
     @property
     def version(self) -> int:
@@ -385,8 +385,8 @@ class ZCodeHeaderV2(ZCodeHeader):
 
 
 class ZCodeHeaderV3(ZCodeHeaderV2):
-    def __init__(self, view: memoryview):
-        super().__init__(view)
+    def __init__(self, memory: memoryview):
+        super().__init__(memory)
 
     @property
     def version(self) -> int:
@@ -450,8 +450,8 @@ class ZCodeHeaderV3(ZCodeHeaderV2):
 
 
 class ZCodeHeaderV4(ZCodeHeaderV3):
-    def __init__(self, view: memoryview):
-        super().__init__(view)
+    def __init__(self, memory: memoryview):
+        super().__init__(memory)
 
     @property
     def version(self) -> int:
@@ -476,8 +476,8 @@ class ZCodeHeaderV4(ZCodeHeaderV3):
 
 
 class ZCodeHeaderV5(ZCodeHeaderV4):
-    def __init__(self, view: memoryview):
-        super().__init__(view)
+    def __init__(self, memory: memoryview):
+        super().__init__(memory)
 
     @property
     def version(self) -> int:
@@ -497,8 +497,8 @@ class ZCodeHeaderV5(ZCodeHeaderV4):
 
 
 class ZCodeHeaderV6(ZCodeHeaderV5):
-    def __init__(self, view: memoryview):
-        super().__init__(view)
+    def __init__(self, memory: memoryview):
+        super().__init__(memory)
 
     @property
     def version(self) -> int:

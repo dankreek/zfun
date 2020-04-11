@@ -5,14 +5,6 @@ import io
 from zfun import z_string_to_str, z_string, abbreviation_to_ascii, get_header
 
 
-@pytest.fixture
-def zork1_v3_data():
-    zork1_v3_file = path.join(path.dirname(__file__), 'zork1.z3')
-    with open(zork1_v3_file, 'rb') as f:
-        io_buf = io.BytesIO(f.read())
-        yield io_buf.getbuffer()
-
-
 def test_to_z_string():
     val = z_string('aaa')
     assert val == bytes([0x98, 0xc6])
