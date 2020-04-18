@@ -8,6 +8,19 @@ def read_word(memory: memoryview, offset: int):
     return (memory[offset] << 8) | memory[offset+1]
 
 
+def write_word(memory: memoryview, offset: int, value: int):
+    """ Write an unsigned word value to a memoryview.
+
+    :param memory: memory to write to
+    :param offset: offset of the word to write in the memory view
+    :param value: Value to write, between 0 and 65,6535
+    """
+    assert 0 <= value <= 65535
+
+    memory[offset] = value >> 8
+    memory[offset + 1] = value & 0xff
+
+
 def set_bit(memory: memoryview, offset: int, bit_num: int, is_set: bool):
     """ Set a bit in a byte inside of a memoryview
 

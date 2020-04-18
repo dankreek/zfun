@@ -17,5 +17,5 @@ def zork1_v3_data() -> memoryview:
 
 @pytest.fixture
 def zork1_v5_data() -> memoryview:
-    yield _file_memorybuffer('zork1.z3')
+    yield _file_memorybuffer('zork1.z5')
 
