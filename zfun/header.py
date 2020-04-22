@@ -383,6 +383,10 @@ class ZCodeHeaderV2(ZCodeHeader):
     def version(self) -> int:
         return 2
 
+    @property
+    def status_line_type(self) -> StatusLineType:
+        return StatusLineType.SCORE_TURNS
+
 
 class ZCodeHeaderV3(ZCodeHeaderV2):
     def __init__(self, memory: memoryview):
@@ -395,9 +399,9 @@ class ZCodeHeaderV3(ZCodeHeaderV2):
     @property
     def status_line_type(self) -> StatusLineType:
         if is_bit_set(self._view, 1, 1):
-            return StatusLineType.SCORE_TURNS
-        else:
             return StatusLineType.HOURS_MINUTES
+        else:
+            return StatusLineType.SCORE_TURNS
 
     @property
     def is_file_split(self) -> bool:
@@ -467,12 +471,20 @@ class ZCodeHeaderV4(ZCodeHeaderV3):
         raise UnsupportedVersionError(f'status_line_type is not supported in version {self.version}')
 
     @property
-    def is_censored_mode(self) -> bool:
+    def is_file_split(self) -> bool:
         raise UnsupportedVersionError(f'is_censored_mode is not available in version {self.version}')
 
-    @is_censored_mode.setter
+    @is_file_split.setter
     def is_file_split(self, is_split: bool):
         raise UnsupportedVersionError(f'is_censored_mode is not available in version {self.version}')
+
+    @property
+    def is_color_available(self) -> bool:
+        return is_bit_set(self._view, 0x01, 0)
+
+    @is_color_available.setter
+    def is_color_available(self, color_available: bool):
+        set_bit(self._view, 0x01, 0, color_available)
 
 
 class ZCodeHeaderV5(ZCodeHeaderV4):
