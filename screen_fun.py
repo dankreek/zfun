@@ -29,6 +29,8 @@ def main(argv):
         for i in range(10):
             screen.print(f'{i}\t' + lorem.paragraph() + '\n', more_prompt)
 
+        thing = screen.read_string()
+        screen.print(f'Read: {thing}', more_prompt)
         screen.std_scr.getch()
 
         return 0

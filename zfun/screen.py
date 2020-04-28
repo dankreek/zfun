@@ -241,6 +241,11 @@ class ZMachineCursesScreenV3(ZMachineScreen):
             self._draw_status_line()
             self._std_scr.refresh()
 
+    def _reset_last_prompt(self):
+        """ Reset the last prompt index to be the very bottom of the back scroll """
+        self._last_prompt_idx = len(self._back_scroll) - 1
+
+
     def _redraw_screen(self):
         """ Redraw the contents of the screen and refresh """
         if self.is_status_displayed:
@@ -337,7 +342,11 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         # TODO: Figure out an incremental way to do this if it becomes too slow
         self._back_scroll.clear()
         for line in self._main_win_history:
-            self._back_scroll += textwrap.wrap(line, width=curses.COLS)
+            if line.strip() == '':
+                # textwrap will turn a blank line into an empty array
+                self._back_scroll.append('')
+            else:
+                self._back_scroll += textwrap.wrap(line, width=curses.COLS)
 
     @property
     def std_scr(self):
@@ -393,6 +402,44 @@ class ZMachineCursesScreenV3(ZMachineScreen):
             self._upper_win.update(cursor_x=0, cursor_y=0)
 
         self._selected_window = window_num
+
+    def read_string(self) -> str:
+        """ Prompt the user for input and return it in the form of a strign.
+
+        :return:
+        """
+        self._print_main_win('\n')
+        self._std_scr.addstr('>')
+        self._std_scr.refresh()
+
+        if self.is_status_displayed:
+            self._draw_status_line()
+
+        user_input = ''
+
+        key_pressed = None
+        while key_pressed != '\n':
+            key_pressed = self._std_scr.getkey()
+
+            if key_pressed == 'KEY_BACKSPACE':
+                if len(user_input) == 0:
+                    curses.beep()
+                else:
+                    user_input = user_input[:-1]
+                    orig_y, orig_x = self._std_scr.getyx()
+                    self._std_scr.move(orig_y, orig_x-1)
+                    self._std_scr.addch(' ')
+                    self._std_scr.move(orig_y, orig_x-1)
+            elif (len(key_pressed) == 1) and (ord(key_pressed) >= 32):
+                if len(user_input) >= (curses.COLS-2):
+                    curses.beep()
+                else:
+                    user_input += key_pressed
+                    self._std_scr.addch(key_pressed)
+
+        self._reset_last_prompt()
+        self._print_main_win(f'>{user_input}\n')
+        return user_input
 
     def terminate(self):
         curses.nocbreak()
