@@ -148,10 +148,11 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         self._is_status_displayed = False
 
-        self._more_cb = None
-
         # Initialize curses
         self._std_scr = curses.initscr()
+
+        # By default the [MORE] prompt just waits for a user to press any key via getch()
+        self._more_cb = self._std_scr.getch
 
     def initialize(self):
         # Standard curses initialization
@@ -197,10 +198,6 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         return curses.LINES - (1 if self.is_status_displayed else 0)
 
     def print(self, text: str):
-        # XXX: refactor this to be the only print method, also put the more_cb as a property
-        self._print_main_win(text)
-
-    def _print_main_win(self, text: str):
         orig_back_scroll_size = len(self._back_scroll)
 
         self._append_text_to_history(text)
@@ -323,10 +320,6 @@ class ZMachineCursesScreenV3(ZMachineScreen):
             else:
                 self._back_scroll += textwrap.wrap(line, width=curses.COLS)
 
-    @property
-    def std_scr(self):
-        return self._std_scr
-
     def update_status(self, object_name: str = None, global2: int = None, global3: int = None):
         # TODO: get strings from game memory once a global vars structure is created
         # XXX: Store these a bytes since global2 can be signed if it represents a score
@@ -349,21 +342,17 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
     @property
     def selected_window(self) -> int:
-        return self._selected_window
+        return ZMachineScreen.LOWER_WIN
 
     @selected_window.setter
     def selected_window(self, window_num: int):
         raise NotImplemented('No upper window functionality in V3')
 
     def read_string(self) -> str:
-        """ Prompt the user for input and return it in the form of a string.
-
-        :return:
-        """
         user_input = ''
 
         # Add an end-line so that the prompt starts on a blank line
-        self._print_main_win('\n')
+        self.print('\n')
 
         # Drawing directly to the screen without adding to the back scroll so that
         # none of this will be stored until the user pressed ENTER
@@ -396,7 +385,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         # Add the user input to the print history
         # (in case the screen gets resized or a viewable back scroll is implemented later)
-        self._print_main_win(f'>{user_input}\n')
+        self.print(f'>{user_input}\n')
 
         # Reset the [MORE] prompt index since the user has been prompted for input
         self._reset_last_prompt()

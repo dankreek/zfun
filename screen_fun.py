@@ -18,12 +18,8 @@ def main(argv):
     header, data = header_and_data(argv[1])
     screen = ZMachineCursesScreenV3(header)
 
-    def more_prompt():
-        screen.std_scr.getch()
-
     try:
         screen.initialize()
-        screen.set_more_cb(more_prompt)
         screen.update_status('Holy Hell', 11, 1)
         screen.is_status_displayed = True
 
@@ -36,7 +32,7 @@ def main(argv):
         for i in range(10, 20):
             screen.print(f'{i}\t' + lorem.paragraph() + '\n')
 
-        screen.std_scr.getch()
+        screen.read_string()
 
         return 0
     finally:
