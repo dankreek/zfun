@@ -116,6 +116,14 @@ class ZMachineScreen(ABC):
     def is_status_displayed(self, display_status: bool):
         pass
 
+    @abstractmethod
+    def read_string(self) -> str:
+        """ Prompt the user for input and return it in the form of a string.
+
+        :return: The string the user typed.
+        """
+        pass
+
 
 class ZMachineCursesScreenV3(ZMachineScreen):
 
