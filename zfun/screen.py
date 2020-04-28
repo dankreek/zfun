@@ -260,7 +260,8 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         if self._header.status_line_type == StatusLineType.SCORE_TURNS:
             # XXX: score should be a signed number - use int.from_bytes(byteorder='big', signed=True)
-            status = f' Score: {self._global2:<6}Moves: {self._global3:<8}'
+            status = f'Score: {self._global2}/{self._global3}'
+            status += ' ' * (19 - len(status))
         else:
             if self._global2 < 12:
                 daypart = 'am'
@@ -272,12 +273,12 @@ class ZMachineCursesScreenV3(ZMachineScreen):
             if hours == 0:
                 hours = 12
 
-            status = f'Time: {hours:>2}:{self._global3:02} {daypart:<5}'
+            status = f'Time:{hours:>2}:{self._global3:02} {daypart}      '
 
         # XXX: truncate object name if needed
         self._std_scr.move(0, 0)
-        self._std_scr.addstr(' ' + self._obj_name, curses.A_REVERSE)
-        self._std_scr.addstr(' ' * (curses.COLS - len(self._obj_name) - len(status) - 1), curses.A_REVERSE)
+        self._std_scr.addstr(self._obj_name, curses.A_REVERSE)
+        self._std_scr.addstr(' ' * (curses.COLS - len(self._obj_name) - len(status)), curses.A_REVERSE)
         self._std_scr.addstr(status, curses.A_REVERSE)
 
         # move cursor back
