@@ -23,14 +23,19 @@ def main(argv):
 
     try:
         screen.initialize()
+        screen.set_more_cb(more_prompt)
         screen.update_status('Holy Hell', 11, 1)
         screen.is_status_displayed = True
 
         for i in range(10):
-            screen.print(f'{i}\t' + lorem.paragraph() + '\n', more_prompt)
+            screen.print(f'{i}\t' + lorem.paragraph() + '\n')
 
         thing = screen.read_string()
-        screen.print(f'Read: {thing}', more_prompt)
+        screen.print(f'\nRead: {thing}\n\n')
+
+        for i in range(10, 20):
+            screen.print(f'{i}\t' + lorem.paragraph() + '\n')
+
         screen.std_scr.getch()
 
         return 0

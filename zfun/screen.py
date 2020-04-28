@@ -85,15 +85,23 @@ class ZMachineScreen(ABC):
         pass
 
     @abstractmethod
-    def print(self, text: str, more_cb: Callable = None):
-        """ Print text to the selected window.
+    def set_more_cb(self, more_cb: Callable):
+        """ Set the [MORE] prompt callback.
 
         If the text is too long to fit in one page of the main window the [MORE] prompt is
         displayed, then the `more_cb` function is called which should just block until the
         user pressed a key, then return.
 
-        :param text:
         :param more_cb:
+        :return:
+        """
+        pass
+
+    @abstractmethod
+    def print(self, text: str):
+        """ Print text to the selected window.
+
+        :param text:
         """
         pass
 
@@ -126,16 +134,13 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         # to facilitate prompting the user for [MORE]
         self._last_prompt_idx = 0
 
-        self._upper_win = dict(height=0, contents='', cursor_pos=0)
-
-        # The currently selected window.
-        self._selected_window = ZMachineScreen.LOWER_WIN
-
         self._obj_name: str = ''
         self._global2: int = 0
         self._global3: int = 0
 
         self._is_status_displayed = False
+
+        self._more_cb = None
 
         # Initialize curses
         self._std_scr = curses.initscr()
@@ -162,6 +167,9 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         else:
             raise NotImplemented(f'Only version 3 stories are supported.')
 
+    def set_more_cb(self, more_cb: Callable):
+        self._more_cb = more_cb
+
     def _resize_windows(self):
         """ Resize the upper and main window to fit the current screen dimension and upper window size """
         pass
@@ -178,31 +186,13 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
     @property
     def _main_win_height(self):
-        return curses.LINES - self._upper_win['height'] - (1 if self.is_status_displayed else 0)
+        return curses.LINES - (1 if self.is_status_displayed else 0)
 
-    def print(self, text: str, more_cb: Callable = None):
-        if self.selected_window == ZMachineScreen.LOWER_WIN:
-            self._print_main_win(text, more_cb)
-        else:
-            self._print_upper_win(text)
+    def print(self, text: str):
+        # XXX: refactor this to be the only print method, also put the more_cb as a property
+        self._print_main_win(text)
 
-    # XXX: see if the z-machine test stories display correct upper window behavior
-    def _print_upper_win(self, text: str):
-        """ Print to the upper window's contents at the current cursor position """
-        if self._upper_win['cursor_pos'] == len(self._upper_win['contents']):
-            # If cursor is at end of contents append
-            self._upper_win['contents'] += text
-        else:
-            # If cursor is in the middle of the contents overwrite it
-            prev_contents = self._upper_win['contents']
-            self._upper_win['contents'] = \
-                prev_contents[0:self._upper_win['cursor_pos']] + \
-                text + \
-                prev_contents[self._upper_win['cursor_pos'] + len(text) - len(prev_contents):]
-
-        # update upper window
-
-    def _print_main_win(self, text: str, more_cb: Callable = None):
+    def _print_main_win(self, text: str):
         orig_back_scroll_size = len(self._back_scroll)
 
         self._append_text_to_history(text)
@@ -230,7 +220,10 @@ class ZMachineCursesScreenV3(ZMachineScreen):
                     self._draw_status_line()
                     self._std_scr.refresh()
 
-                more_cb()
+                # Ask the user to press a key
+                if self._more_cb:
+                    self._more_cb()
+
                 self._last_prompt_idx = i
                 self._std_scr.move(curses.LINES-1, 0)
                 self._std_scr.clrtoeol()
@@ -245,14 +238,10 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         """ Reset the last prompt index to be the very bottom of the back scroll """
         self._last_prompt_idx = len(self._back_scroll) - 1
 
-
     def _redraw_screen(self):
         """ Redraw the contents of the screen and refresh """
         if self.is_status_displayed:
             self._draw_status_line()
-
-        if self._upper_win['height'] > 0:
-            self._draw_upper_win()
 
         self._draw_main_win()
 
@@ -288,28 +277,6 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         # move cursor back
         self._std_scr.move(orig_y, orig_x)
-
-    def _draw_upper_win(self):
-        if self._upper_win['height'] > 0:
-            output = []
-            for line in self._upper_win['contents'].splitlines(keepends=True):
-                if len(line) < curses.COLS:
-                    output.append(line)
-                else:
-                    # break up into lines of proper length
-                    output += [str[i:i+curses.COLS] for i in range(0, len(line), curses.COLS)]
-
-            orig_y, orig_x = self._std_scr.getyx()
-
-            if self._is_status_displayed:
-                self._std_scr.move(1, 0)
-            else:
-                self._std_scr.move(0, 0)
-
-            for i in range(self._upper_win['height']):
-                self._std_scr.addstr(output[i])
-
-            self._std_scr.move(orig_y, orig_x)
 
     def _draw_main_win(self):
         bs_start_idx = len(self._back_scroll) - self._main_win_height
@@ -362,28 +329,11 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
     @property
     def upper_window_height(self) -> Union[None, int]:
-        return self._upper_win['height']
+        raise NotImplemented('No upper window functionality in V3')
 
     @upper_window_height.setter
     def upper_window_height(self, height: int):
-        assert height > 0
-
-        if height == 0:
-            # Remove upper window
-            self._upper_win['contents'] = ''
-        if self._upper_win['height'] == 0:
-            # Create a new upper window
-            self._upper_win.update(contents='', cursor_pos=0)
-
-            # Clear upper window (should only be done in V3 upon opening upper window)
-            prev_y, prev_x = self._std_scr.getyx()
-            self._std_scr.move(1 if self.is_status_displayed else 0, 0)
-            for i in range(height):
-                self._std_scr.addstr(' ' * curses.COLS)
-            self._std_scr.move(prev_y, prev_x)
-
-        self._upper_win['height'] = height
-        self._redraw_screen()
+        raise NotImplemented('No upper window functionality in V3')
 
     @property
     def dimensions(self) -> Tuple[int, int]:
@@ -395,27 +345,25 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
     @selected_window.setter
     def selected_window(self, window_num: int):
-        assert ZMachineScreen.UPPER_WIN <= window_num <= ZMachineScreen.LOWER_WIN
-
-        # If the upper window is selected reset its cursor position
-        if window_num == ZMachineScreen.UPPER_WIN:
-            self._upper_win.update(cursor_x=0, cursor_y=0)
-
-        self._selected_window = window_num
+        raise NotImplemented('No upper window functionality in V3')
 
     def read_string(self) -> str:
-        """ Prompt the user for input and return it in the form of a strign.
+        """ Prompt the user for input and return it in the form of a string.
 
         :return:
         """
+        user_input = ''
+
+        # Add an end-line so that the prompt starts on a blank line
         self._print_main_win('\n')
+
+        # Drawing directly to the screen without adding to the back scroll so that
+        # none of this will be stored until the user pressed ENTER
         self._std_scr.addstr('>')
         self._std_scr.refresh()
 
         if self.is_status_displayed:
             self._draw_status_line()
-
-        user_input = ''
 
         key_pressed = None
         while key_pressed != '\n':
@@ -425,20 +373,26 @@ class ZMachineCursesScreenV3(ZMachineScreen):
                 if len(user_input) == 0:
                     curses.beep()
                 else:
+                    # Remove the last character typed from the accumulator and the screen
                     user_input = user_input[:-1]
                     orig_y, orig_x = self._std_scr.getyx()
+                    self._std_scr.addch(orig_y, orig_x-1, ' ')
                     self._std_scr.move(orig_y, orig_x-1)
-                    self._std_scr.addch(' ')
-                    self._std_scr.move(orig_y, orig_x-1)
-            elif (len(key_pressed) == 1) and (ord(key_pressed) >= 32):
+            elif (len(key_pressed) == 1) and (32 <= ord(key_pressed) <= 127):
+                # If the user has typed a regular key within the printable ASCII range
                 if len(user_input) >= (curses.COLS-2):
                     curses.beep()
                 else:
                     user_input += key_pressed
                     self._std_scr.addch(key_pressed)
 
-        self._reset_last_prompt()
+        # Add the user input to the print history
+        # (in case the screen gets resized or a viewable back scroll is implemented later)
         self._print_main_win(f'>{user_input}\n')
+
+        # Reset the [MORE] prompt index since the user has been prompted for input
+        self._reset_last_prompt()
+
         return user_input
 
     def terminate(self):
