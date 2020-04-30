@@ -29,8 +29,7 @@ class ZMachineScreen(ABC):
 
     # These guesses come from someone else's guesses! (just like most things known)
     # https://github.com/sussman/zvm/blob/master/zvm/zscreen.py#L14-L21
-    STATUS_WIN = 0
-    UPPER_WIN = 1
+    STATUS_WIN = 1
     LOWER_WIN = 2
 
     @abstractmethod
@@ -126,6 +125,8 @@ class ZMachineScreen(ABC):
 
 
 class ZMachineCursesScreenV3(ZMachineScreen):
+
+    MAX_INPUT_SIZE = 77  # So punk rock (also the limit for the 8 bit interpreters)
 
     def __init__(self, header: ZCodeHeader):
         super().__init__(header)
@@ -258,6 +259,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         orig_y, orig_x = self._std_scr.getyx()
 
         if self._header.status_line_type == StatusLineType.SCORE_TURNS:
+            # XXX: Make set_status accept bytes for globals
             # XXX: score should be a signed number - use int.from_bytes(byteorder='big', signed=True)
             status = f'Score: {self._global2}/{self._global3}'
             status += ' ' * (19 - len(status))
@@ -274,9 +276,16 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
             status = f'Time:{hours:>2}:{self._global3:02} {daypart}      '
 
-        # XXX: truncate object name if needed
         self._std_scr.move(0, 0)
-        self._std_scr.addstr(self._obj_name, curses.A_REVERSE)
+
+        obj_name_len = curses.COLS - len(status) - 1
+        if len(self._obj_name) > obj_name_len:
+            # truncate object name if too long
+            obj_name = self._obj_name[:obj_name_len-3] + '... '
+        else:
+            obj_name = self._obj_name
+
+        self._std_scr.addstr(obj_name, curses.A_REVERSE)
         self._std_scr.addstr(' ' * (curses.COLS - len(self._obj_name) - len(status)), curses.A_REVERSE)
         self._std_scr.addstr(status, curses.A_REVERSE)
 
@@ -373,11 +382,19 @@ class ZMachineCursesScreenV3(ZMachineScreen):
                     # Remove the last character typed from the accumulator and the screen
                     user_input = user_input[:-1]
                     orig_y, orig_x = self._std_scr.getyx()
-                    self._std_scr.addch(orig_y, orig_x-1, ' ')
-                    self._std_scr.move(orig_y, orig_x-1)
+
+                    new_x = orig_x - 1
+                    if new_x < 0:
+                        new_x = curses.COLS - 1
+                        new_y = orig_y - 1
+                    else:
+                        new_y = orig_y
+
+                    self._std_scr.addch(new_y, new_x, ' ')
+                    self._std_scr.move(new_y, new_x)
             elif (len(key_pressed) == 1) and (32 <= ord(key_pressed) <= 127):
                 # If the user has typed a regular key within the printable ASCII range
-                if len(user_input) >= (curses.COLS-2):
+                if len(user_input) >= self.MAX_INPUT_SIZE:
                     curses.beep()
                 else:
                     user_input += key_pressed

@@ -20,7 +20,7 @@ def main(argv):
 
     try:
         screen.initialize()
-        screen.update_status('Holy Hell', 11, 1)
+        screen.update_status('Holy Hell, Batman!', 11, 1)
         screen.is_status_displayed = True
 
         for i in range(10):
@@ -29,7 +29,7 @@ def main(argv):
         thing = screen.read_string()
         screen.print(f'\nRead: {thing}\n\n')
 
-        for i in range(10, 20):
+        for i in range(10, 12):
             screen.print(f'{i}\t' + lorem.paragraph() + '\n')
 
         screen.read_string()
