@@ -1,7 +1,7 @@
 import sys
 import lorem
 from io import BytesIO
-from zfun import ZMachineCursesScreenV3, get_header, ZCodeHeader
+from zfun import ZMachineCursesScreenV3, get_header, ZCodeHeader, ZMachineVariables, ObjectTable
 from typing import Tuple
 
 
@@ -16,11 +16,16 @@ def header_and_data(file_path: str) -> Tuple[ZCodeHeader, memoryview]:
 
 def main(argv):
     header, data = header_and_data(argv[1])
-    screen = ZMachineCursesScreenV3(header)
+    variables = ZMachineVariables(data, header)
+    obj_table = ObjectTable(data, header)
+    screen = ZMachineCursesScreenV3(header, variables, obj_table)
 
     try:
         screen.initialize()
-        screen.update_status('Holy Hell, Batman!', 11, 1)
+        variables.set_global_val(0, 180)
+        variables.set_global_signed_val(1, 13)
+        variables.set_global_val(2, 2)
+
         screen.is_status_displayed = True
 
         for i in range(10):

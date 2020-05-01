@@ -7,6 +7,9 @@ from abc import ABC, abstractmethod
 from typing import Tuple, Union, Callable, List
 
 from .header import ZCodeHeader, StatusLineType
+from .variables import ZMachineVariables
+from .util import read_word, read_signed_word
+from .objects import ObjectTable
 
 
 class ColorCodes(Enum):
@@ -24,8 +27,10 @@ class ColorCodes(Enum):
 
 
 class ZMachineScreen(ABC):
-    def __init__(self, header: ZCodeHeader):
+    def __init__(self, header: ZCodeHeader, variables: ZMachineVariables, obj_table: ObjectTable):
         self._header = header
+        self._variables = variables
+        self._obj_table = obj_table
 
     # These guesses come from someone else's guesses! (just like most things known)
     # https://github.com/sussman/zvm/blob/master/zvm/zscreen.py#L14-L21
@@ -40,18 +45,6 @@ class ZMachineScreen(ABC):
     @abstractmethod
     def terminate(self):
         """ Free up all resources use by the screen back to the environment. """
-        pass
-
-    @abstractmethod
-    def update_status(self, object_name: str = None, global2: int = None, global3: int = None):
-        """ Update the status line.
-
-        If parameters are not provided then they are acquired from game memory.
-
-        :param object_name: Name of the object to display in the status line.
-        :param global2: Value of 2nd global var
-        :param global3: Value of 3rd global var
-        """
         pass
 
     @property
@@ -128,8 +121,8 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
     MAX_INPUT_SIZE = 77  # So punk rock (also the limit for the 8 bit interpreters)
 
-    def __init__(self, header: ZCodeHeader):
-        super().__init__(header)
+    def __init__(self, header: ZCodeHeader, variables: ZMachineVariables, obj_table: ObjectTable):
+        super().__init__(header, variables, obj_table)
 
         # A history of every line sent to the main window, used for populating the back scroll
         self._main_win_history: List[str] = []
@@ -259,34 +252,36 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         orig_y, orig_x = self._std_scr.getyx()
 
         if self._header.status_line_type == StatusLineType.SCORE_TURNS:
-            # XXX: Make set_status accept bytes for globals
-            # XXX: score should be a signed number - use int.from_bytes(byteorder='big', signed=True)
-            status = f'Score: {self._global2}/{self._global3}'
+            score = self._variables.global_signed_val(1)
+            turns = self._variables.global_val(2)
+
+            status = f'Score: {score}/{turns}'
             status += ' ' * (19 - len(status))
         else:
-            if self._global2 < 12:
-                daypart = 'am'
-                hours = self._global2
+            hours = self._variables.global_val(1)
+            mins = self._variables.global_val(2)
+
+            if hours < 12:
+                day_part = 'am'
             else:
-                daypart = 'pm'
-                hours = self._global2 - 12
+                day_part = 'pm'
+                hours -= 12
 
             if hours == 0:
                 hours = 12
 
-            status = f'Time:{hours:>2}:{self._global3:02} {daypart}      '
+            status = f'Time:{hours:>2}:{mins:02} {day_part}      '
 
         self._std_scr.move(0, 0)
 
         obj_name_len = curses.COLS - len(status) - 1
-        if len(self._obj_name) > obj_name_len:
+        obj_name = self._obj_table.object(self._variables.global_val(0)).properties.name
+        if len(obj_name) > obj_name_len:
             # truncate object name if too long
-            obj_name = self._obj_name[:obj_name_len-3] + '... '
-        else:
-            obj_name = self._obj_name
+            obj_name = obj_name[:obj_name_len-3] + '... '
 
         self._std_scr.addstr(obj_name, curses.A_REVERSE)
-        self._std_scr.addstr(' ' * (curses.COLS - len(self._obj_name) - len(status)), curses.A_REVERSE)
+        self._std_scr.addstr(' ' * (curses.COLS - len(obj_name) - len(status)), curses.A_REVERSE)
         self._std_scr.addstr(status, curses.A_REVERSE)
 
         # move cursor back
@@ -328,14 +323,6 @@ class ZMachineCursesScreenV3(ZMachineScreen):
                 self._back_scroll.append('')
             else:
                 self._back_scroll += textwrap.wrap(line, width=curses.COLS)
-
-    def update_status(self, object_name: str = None, global2: int = None, global3: int = None):
-        # TODO: get strings from game memory once a global vars structure is created
-        # XXX: Store these a bytes since global2 can be signed if it represents a score
-        self._obj_name = object_name
-        self._global2 = global2
-        self._global3 = global3
-        self._draw_status_line()
 
     @property
     def upper_window_height(self) -> Union[None, int]:

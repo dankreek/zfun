@@ -21,6 +21,30 @@ def write_word(memory: memoryview, offset: int, value: int):
     memory[offset + 1] = value & 0xff
 
 
+def write_signed_word(memory: memoryview, offset: int, value: int):
+    """ Write a signed word value to a memoryview
+
+    :param memory: memory to write to
+    :param offset: offset of the word to write in the memory view
+    :param value: Value to write, between 0 and 65,6535
+    """
+    assert -32768 <= value <= 32767
+
+    byte_val = value.to_bytes(2, byteorder='big', signed=True)
+    memory[offset] = byte_val[0]
+    memory[offset+1] = byte_val[1]
+
+
+def read_signed_word(memory: memoryview, offset) -> int:
+    """ Read a word as a signed integer from a memoryview
+
+    :param memory: memory to read from
+    :param offset: offset of the word inside of the memoryview
+    :return: signed integer word value located in memory at given offset
+    """
+    return int.from_bytes(memory[offset:offset+2], byteorder='big', signed=True)
+
+
 def set_bit(memory: memoryview, offset: int, bit_num: int, is_set: bool):
     """ Set a bit in a byte inside of a memoryview
 
