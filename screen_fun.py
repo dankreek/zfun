@@ -31,13 +31,14 @@ def main(argv):
         for i in range(10):
             screen.print(f'{i}\t' + lorem.paragraph() + '\n')
 
-        thing = screen.read_string()
+        screen.print('>')
+        thing = screen.read_string(77)
         screen.print(f'\nRead: {thing}\n\n')
 
         for i in range(10, 12):
             screen.print(f'{i}\t' + lorem.paragraph() + '\n')
 
-        screen.read_string()
+        screen.read_string(1)
 
         return 0
     finally:
