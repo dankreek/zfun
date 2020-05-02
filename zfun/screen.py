@@ -1,15 +1,14 @@
-import sys
 import curses
 import textwrap
-
 from enum import Enum
 from abc import ABC, abstractmethod
 from typing import Tuple, Union, Callable, List
 
 from .header import ZCodeHeader, StatusLineType
 from .variables import ZMachineVariables
-from .util import read_word, read_signed_word
 from .objects import ObjectTable
+
+# XXX: read opcodes: read_char, read
 
 
 class ColorCodes(Enum):
@@ -109,9 +108,10 @@ class ZMachineScreen(ABC):
         pass
 
     @abstractmethod
-    def read_string(self) -> str:
+    def read_string(self, max_len: int) -> str:
         """ Prompt the user for input and return it in the form of a string.
 
+        :param max_len: The maximum length of input that should be accepted
         :return: The string the user typed.
         """
         pass
@@ -205,10 +205,6 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         for i in range(orig_back_scroll_size, len(self._back_scroll)):
             output_str = self._back_scroll[i]
             self._std_scr.addstr(curses.LINES-1, 0, output_str)
-
-            # only add an end line if the line isn't as wide as the screen
-            if len(output_str) < curses.COLS:
-                self._std_scr.addch('\n')
 
             # If an entire page of text has been sent since the last time a user was prompted, ask them to press a key
             if (i - self._last_prompt_idx) > (self._main_win_height - 3):
@@ -318,11 +314,19 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         # TODO: Figure out an incremental way to do this if it becomes too slow
         self._back_scroll.clear()
         for line in self._main_win_history:
-            if line.strip() == '':
-                # textwrap will turn a blank line into an empty array
-                self._back_scroll.append('')
-            else:
-                self._back_scroll += textwrap.wrap(line, width=curses.COLS)
+            wrapped_text = textwrap.fill(line, width=curses.COLS)
+
+            for wrapped_line in wrapped_text.splitlines(keepends=False):
+                # Only add an explicit endline if the line is shorter than the width of the screen,
+                # otherwise the screen will just wrap to the next line automatically
+                if len(wrapped_line) < curses.COLS:
+                    wrapped_line += '\n'
+
+                self._back_scroll.append(wrapped_line)
+
+            # If the original line doesn't end with an explicit newline, remove the one we added
+            if line[-1] != '\n' and self._back_scroll[-1][-1] == '\n':
+                self._back_scroll[-1] = self._back_scroll[-1][:-1]
 
     @property
     def upper_window_height(self) -> Union[None, int]:
@@ -344,16 +348,8 @@ class ZMachineCursesScreenV3(ZMachineScreen):
     def selected_window(self, window_num: int):
         raise NotImplemented('No upper window functionality in V3')
 
-    def read_string(self) -> str:
+    def read_string(self, max_len: int) -> str:
         user_input = ''
-
-        # Add an end-line so that the prompt starts on a blank line
-        self.print('\n')
-
-        # Drawing directly to the screen without adding to the back scroll so that
-        # none of this will be stored until the user pressed ENTER
-        self._std_scr.addstr('>')
-        self._std_scr.refresh()
 
         if self.is_status_displayed:
             self._draw_status_line()
@@ -381,7 +377,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
                     self._std_scr.move(new_y, new_x)
             elif (len(key_pressed) == 1) and (32 <= ord(key_pressed) <= 127):
                 # If the user has typed a regular key within the printable ASCII range
-                if len(user_input) >= self.MAX_INPUT_SIZE:
+                if len(user_input) >= max_len:
                     curses.beep()
                 else:
                     user_input += key_pressed
@@ -389,7 +385,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         # Add the user input to the print history
         # (in case the screen gets resized or a viewable back scroll is implemented later)
-        self.print(f'>{user_input}\n')
+        self.print(user_input)
 
         # Reset the [MORE] prompt index since the user has been prompted for input
         self._reset_last_prompt()
