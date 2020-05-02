@@ -119,8 +119,6 @@ class ZMachineScreen(ABC):
 
 class ZMachineCursesScreenV3(ZMachineScreen):
 
-    MAX_INPUT_SIZE = 77  # So punk rock (also the limit for the 8 bit interpreters)
-
     def __init__(self, header: ZCodeHeader, variables: ZMachineVariables, obj_table: ObjectTable):
         super().__init__(header, variables, obj_table)
 
@@ -175,6 +173,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
     def _resize_windows(self):
         """ Resize the upper and main window to fit the current screen dimension and upper window size """
+        # XXX: Handle resizing!
         pass
 
     @property
@@ -199,7 +198,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         if orig_back_scroll_size > 0:
             # reprint the last line, in the case where the line has been appended
-            self._std_scr.addstr(curses.LINES-2, 0, self._back_scroll[orig_back_scroll_size-1] + '\n')
+            self._std_scr.addstr(curses.LINES-2, 0, self._back_scroll[orig_back_scroll_size-1])
 
         # Output each new line and allow for hardware scrolling
         for i in range(orig_back_scroll_size, len(self._back_scroll)):

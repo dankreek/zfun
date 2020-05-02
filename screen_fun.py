@@ -36,7 +36,7 @@ def main(argv):
         screen.print(f'\nRead: {thing}\n\n')
 
         for i in range(10, 12):
-            screen.print(f'{i}\t' + lorem.paragraph())
+            screen.print(f'{i}\t' + lorem.paragraph() + '\n')
 
         screen.read_string(1)
 
