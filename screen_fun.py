@@ -29,14 +29,14 @@ def main(argv):
         screen.is_status_displayed = True
 
         for i in range(10):
-            screen.print(f'{i}\t' + lorem.paragraph() + '\n')
+            screen.print(f'{i}\t' + lorem.paragraph() + '\n\n')
 
         screen.print('>')
         thing = screen.read_string(77)
         screen.print(f'\nRead: {thing}\n\n')
 
         for i in range(10, 12):
-            screen.print(f'{i}\t' + lorem.paragraph() + '\n')
+            screen.print(f'{i}\t' + lorem.paragraph() + '\n\n')
 
         screen.read_string(1)
 

@@ -313,19 +313,22 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         # TODO: Figure out an incremental way to do this if it becomes too slow
         self._back_scroll.clear()
         for line in self._main_win_history:
-            wrapped_text = textwrap.fill(line, width=curses.COLS)
+            if line == '\n':
+                self._back_scroll.append(line)
+            else:
+                wrapped_text = textwrap.fill(line, width=curses.COLS)
 
-            for wrapped_line in wrapped_text.splitlines(keepends=False):
-                # Only add an explicit endline if the line is shorter than the width of the screen,
-                # otherwise the screen will just wrap to the next line automatically
-                if len(wrapped_line) < curses.COLS:
-                    wrapped_line += '\n'
+                for wrapped_line in wrapped_text.splitlines(keepends=False):
+                    # Only add an explicit endline if the line is shorter than the width of the screen,
+                    # otherwise the screen will just wrap to the next line automatically
+                    if len(wrapped_line) < curses.COLS:
+                        wrapped_line += '\n'
 
-                self._back_scroll.append(wrapped_line)
+                    self._back_scroll.append(wrapped_line)
 
-            # If the original line doesn't end with an explicit newline, remove the one we added
-            if line[-1] != '\n' and self._back_scroll[-1][-1] == '\n':
-                self._back_scroll[-1] = self._back_scroll[-1][:-1]
+                # If the original line doesn't end with an explicit newline, remove the one we added
+                if line[-1] != '\n' and self._back_scroll[-1][-1] == '\n':
+                    self._back_scroll[-1] = self._back_scroll[-1][:-1]
 
     @property
     def upper_window_height(self) -> Union[None, int]:
@@ -384,7 +387,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         # Add the user input to the print history
         # (in case the screen gets resized or a viewable back scroll is implemented later)
-        self.print(user_input)
+        self.print(user_input + '\n')
 
         # Reset the [MORE] prompt index since the user has been prompted for input
         self._reset_last_prompt()
