@@ -73,6 +73,7 @@ class ZMachineScreen(ABC):
     def selected_window(self, window_num: int):
         pass
 
+    # XXX: remove this later and let the implementation handle it
     @abstractmethod
     def set_more_cb(self, more_cb: Callable):
         """ Set the [MORE] prompt callback.
@@ -115,6 +116,7 @@ class ZMachineScreen(ABC):
         pass
 
 
+# XXX: Add pgup/pgdown functionality (only functioning during user input and not MORE prompt would make this easier)
 class ZMachineCursesScreenV3(ZMachineScreen):
 
     def __init__(self, header: ZCodeHeader, variables: ZMachineVariables, obj_table: ObjectTable):
@@ -145,14 +147,14 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         # By default the [MORE] prompt just waits for a user to press any key via getch()
         self._more_cb = self._handle_more_prompt
 
-    def _handle_more_prompt(self):
+    def _handle_more_prompt(self) -> bool:
         """ Get a character with getch and poll until a user strikes a key.
 
         If the screen is resized, handle that.
-        """
-        more_args = ['[MORE]', curses.A_BOLD]
 
-        self._std_scr.addstr(*more_args)
+        :returns: True if [more] prompting should continue, False if not (in the case of a resize)
+        """
+        self._std_scr.addstr('[MORE]', curses.A_BOLD)
         self._std_scr.refresh()
 
         if self.is_status_displayed:
@@ -164,8 +166,10 @@ class ZMachineCursesScreenV3(ZMachineScreen):
             got = self._std_scr.getch()
 
             if got == curses.KEY_RESIZE:
-                got = -1
-                self._handle_screen_resize(*more_args)
+                self._handle_screen_resize()
+                return False
+
+        return True
 
     def initialize(self):
         # Standard curses initialization
@@ -196,12 +200,15 @@ class ZMachineCursesScreenV3(ZMachineScreen):
     def set_more_cb(self, more_cb: Callable):
         self._more_cb = more_cb
 
-    def _handle_screen_resize(self, append: str, attr: int = curses.A_NORMAL):
+    def _handle_screen_resize(self, append: str = None, attr: int = curses.A_NORMAL):
         # Re-apply the history to the back-scroll with the new screen dimensions
         curses.update_lines_cols()
         self._apply_history_to_back_scroll()
         self._redraw_screen()
-        self._std_scr.addstr(append, attr)
+
+        if append is not None:
+            self._std_scr.addstr(append, attr)
+
         self._std_scr.refresh()
 
     @property
@@ -235,11 +242,16 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
             # If an entire page of text has been sent since the last time a user was prompted, ask them to press a key
             if (i - self._last_prompt_idx) > (self._main_win_height - 3):
-                self._handle_more_prompt()
-
-                self._last_prompt_idx = i
-                self._std_scr.move(curses.LINES-1, 0)
-                self._std_scr.clrtoeol()
+                if self._handle_more_prompt():
+                    self._last_prompt_idx = i
+                    self._std_scr.move(curses.LINES-1, 0)
+                    self._std_scr.clrtoeol()
+                else:
+                    # The screen was resized so the rest of the text will have already been
+                    # displayed to the user. The back-scroll buffer it totally different now
+                    # so the user can just use pgup/pgdown to view anything they missed
+                    self._reset_last_prompt()
+                    return
 
         self._std_scr.refresh()
 
@@ -255,10 +267,10 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         """ Redraw the contents of the screen and refresh """
         self._std_scr.erase()
 
+        self._redraw_main_win()
+
         if self.is_status_displayed:
             self._draw_status_line()
-
-        self._redraw_main_win()
 
     def _draw_status_line(self):
         """ Draw the status line into the std_src but don't refresh """
@@ -305,8 +317,8 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         if bs_start_idx < 0:
             # the back scroll is smaller than the main window height
-            bs_start_idx = abs(bs_start_idx)
-            screen_start_line = curses.LINES - len(self._back_scroll)
+            screen_start_line = abs(bs_start_idx)
+            bs_start_idx = 0
         else:
             screen_start_line = curses.LINES - self._main_win_height
 
