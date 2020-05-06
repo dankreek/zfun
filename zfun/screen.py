@@ -8,8 +8,6 @@ from .header import ZCodeHeader, StatusLineType
 from .variables import ZMachineVariables
 from .objects import ObjectTable
 
-# XXX: read opcodes: read_char, read
-
 
 class ColorCodes(Enum):
     BLACK = 2
@@ -152,13 +150,22 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         If the screen is resized, handle that.
         """
+        more_args = ['[MORE]', curses.A_BOLD]
+
+        self._std_scr.addstr(*more_args)
+        self._std_scr.refresh()
+
+        if self.is_status_displayed:
+            self._draw_status_line()
+            self._std_scr.refresh()
+
         got = -1
         while got == -1:
             got = self._std_scr.getch()
 
             if got == curses.KEY_RESIZE:
                 got = -1
-                self._resize_windows('something')
+                self._handle_screen_resize(*more_args)
 
     def initialize(self):
         # Standard curses initialization
@@ -189,9 +196,13 @@ class ZMachineCursesScreenV3(ZMachineScreen):
     def set_more_cb(self, more_cb: Callable):
         self._more_cb = more_cb
 
-    def _resize_windows(self, append: str, attr: int = None):
-        """ Resize the upper and main window to fit the current screen dimension and upper window size """
-        raise RuntimeError('My nutter is week')
+    def _handle_screen_resize(self, append: str, attr: int = curses.A_NORMAL):
+        # Re-apply the history to the back-scroll with the new screen dimensions
+        curses.update_lines_cols()
+        self._apply_history_to_back_scroll()
+        self._redraw_screen()
+        self._std_scr.addstr(append, attr)
+        self._std_scr.refresh()
 
     @property
     def is_status_displayed(self) -> bool:
@@ -206,13 +217,6 @@ class ZMachineCursesScreenV3(ZMachineScreen):
     @property
     def _main_win_height(self):
         return curses.LINES - (1 if self.is_status_displayed else 0)
-
-    def _is_screen_resized(self):
-        if curses.is_term_resized(self._screen_y, self._screen_x):
-            self._screen_y, self._screen_x = self._std_scr.getmaxyx()
-            return True
-        else:
-            return False
 
     def print(self, text: str):
         orig_back_scroll_size = len(self._back_scroll)
@@ -231,16 +235,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
             # If an entire page of text has been sent since the last time a user was prompted, ask them to press a key
             if (i - self._last_prompt_idx) > (self._main_win_height - 3):
-                self._std_scr.addstr('[MORE]', curses.A_BOLD)
-                self._std_scr.refresh()
-
-                if self.is_status_displayed:
-                    self._draw_status_line()
-                    self._std_scr.refresh()
-
-                # Ask the user to press a key
-                if self._more_cb:
-                    self._more_cb()
+                self._handle_more_prompt()
 
                 self._last_prompt_idx = i
                 self._std_scr.move(curses.LINES-1, 0)
@@ -258,13 +253,12 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
     def _redraw_screen(self):
         """ Redraw the contents of the screen and refresh """
+        self._std_scr.erase()
+
         if self.is_status_displayed:
             self._draw_status_line()
 
-        self._draw_main_win()
-
-        # Move cursor back to original position
-        self._std_scr.refresh()
+        self._redraw_main_win()
 
     def _draw_status_line(self):
         """ Draw the status line into the std_src but don't refresh """
@@ -306,7 +300,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         # move cursor back
         self._std_scr.move(orig_y, orig_x)
 
-    def _draw_main_win(self):
+    def _redraw_main_win(self):
         bs_start_idx = len(self._back_scroll) - self._main_win_height
 
         if bs_start_idx < 0:
@@ -318,10 +312,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         self._std_scr.move(screen_start_line, 0)
         for i in range(bs_start_idx, len(self._back_scroll)):
-            text_line = self._back_scroll[i].rstrip()
-            self._std_scr.addstr(text_line)
-            # pad out spaces at end to overwrite anything previously on the screen
-            self._std_scr.addstr(' ' * (curses.COLS - len(text_line)))
+            self._std_scr.addstr(self._back_scroll[i])
 
     def _append_text_to_history(self, text: str):
         """ add/append new lines to the main window history """
@@ -384,10 +375,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         while key_pressed != ord('\n'):
             key_pressed = self._std_scr.getch()
 
-            if self._is_screen_resized():
-                self._resize_windows(user_input)
-
-            if key_pressed == curses.KEY_BACKSPACE:
+            if key_pressed in [ord('\b'), curses.KEY_BACKSPACE]:
                 if len(user_input) == 0:
                     curses.beep()
                 else:
@@ -405,7 +393,7 @@ class ZMachineCursesScreenV3(ZMachineScreen):
                     self._std_scr.addch(new_y, new_x, ' ')
                     self._std_scr.move(new_y, new_x)
             elif key_pressed == curses.KEY_RESIZE:
-                self._resize_windows(user_input)
+                self._handle_screen_resize(user_input)
             elif 32 <= key_pressed <= 126:
                 # If the user has typed a regular key within the printable ASCII range
                 if len(user_input) >= max_len:
