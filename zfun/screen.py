@@ -142,9 +142,23 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
         # Initialize curses
         self._std_scr = curses.initscr()
+        self._screen_y, self._screen_x = self._std_scr.getmaxyx()
 
         # By default the [MORE] prompt just waits for a user to press any key via getch()
-        self._more_cb = self._std_scr.getch
+        self._more_cb = self._handle_more_prompt
+
+    def _handle_more_prompt(self):
+        """ Get a character with getch and poll until a user strikes a key.
+
+        If the screen is resized, handle that.
+        """
+        got = -1
+        while got == -1:
+            got = self._std_scr.getch()
+
+            if got == curses.KEY_RESIZE:
+                got = -1
+                self._resize_windows('something')
 
     def initialize(self):
         # Standard curses initialization
@@ -154,6 +168,10 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         self._std_scr.keypad(True)  # return key codes as strings
         self._std_scr.scrollok(True)
         self._std_scr.idlok(True)
+
+        # Timeout while waiting for keystrokes to check for screen resizing
+        self._std_scr.timeout(10)
+
         self._std_scr.refresh()
 
         # Set header flags for this screen's capability in the z-machine
@@ -171,10 +189,9 @@ class ZMachineCursesScreenV3(ZMachineScreen):
     def set_more_cb(self, more_cb: Callable):
         self._more_cb = more_cb
 
-    def _resize_windows(self):
+    def _resize_windows(self, append: str, attr: int = None):
         """ Resize the upper and main window to fit the current screen dimension and upper window size """
-        # XXX: Handle resizing!
-        pass
+        raise RuntimeError('My nutter is week')
 
     @property
     def is_status_displayed(self) -> bool:
@@ -189,6 +206,13 @@ class ZMachineCursesScreenV3(ZMachineScreen):
     @property
     def _main_win_height(self):
         return curses.LINES - (1 if self.is_status_displayed else 0)
+
+    def _is_screen_resized(self):
+        if curses.is_term_resized(self._screen_y, self._screen_x):
+            self._screen_y, self._screen_x = self._std_scr.getmaxyx()
+            return True
+        else:
+            return False
 
     def print(self, text: str):
         orig_back_scroll_size = len(self._back_scroll)
@@ -356,11 +380,14 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         if self.is_status_displayed:
             self._draw_status_line()
 
-        key_pressed = None
-        while key_pressed != '\n':
-            key_pressed = self._std_scr.getkey()
+        key_pressed = -1
+        while key_pressed != ord('\n'):
+            key_pressed = self._std_scr.getch()
 
-            if key_pressed == 'KEY_BACKSPACE':
+            if self._is_screen_resized():
+                self._resize_windows(user_input)
+
+            if key_pressed == curses.KEY_BACKSPACE:
                 if len(user_input) == 0:
                     curses.beep()
                 else:
@@ -377,12 +404,14 @@ class ZMachineCursesScreenV3(ZMachineScreen):
 
                     self._std_scr.addch(new_y, new_x, ' ')
                     self._std_scr.move(new_y, new_x)
-            elif (len(key_pressed) == 1) and (32 <= ord(key_pressed) <= 127):
+            elif key_pressed == curses.KEY_RESIZE:
+                self._resize_windows(user_input)
+            elif 32 <= key_pressed <= 126:
                 # If the user has typed a regular key within the printable ASCII range
                 if len(user_input) >= max_len:
                     curses.beep()
                 else:
-                    user_input += key_pressed
+                    user_input += chr(key_pressed)
                     self._std_scr.addch(key_pressed)
 
         # Add the user input to the print history
