@@ -1,15 +1,15 @@
 import pytest
 
-from zfun import Dictionary, get_header
+from zfun import ZMachineDictionary, get_header
 
 
 @pytest.fixture
-def zork_v3_dict(zork1_v3_data: memoryview) -> Dictionary:
+def zork_v3_dict(zork1_v3_data: memoryview) -> ZMachineDictionary:
     header = get_header(zork1_v3_data)
-    yield Dictionary(zork1_v3_data, header)
+    yield ZMachineDictionary(zork1_v3_data, header)
 
 
-def test_dictionary_word_separators(zork_v3_dict: Dictionary):
+def test_dictionary_word_separators(zork_v3_dict: ZMachineDictionary):
     separators = zork_v3_dict.word_separators
     assert separators == [ord(','), ord('.'), ord('"')]
 
@@ -24,7 +24,7 @@ dict_entries_test_cases = [
 
 
 @pytest.mark.parametrize('entry_num,expected_text', dict_entries_test_cases)
-def test_dictionary_entries(entry_num: int, expected_text: str, zork_v3_dict: Dictionary):
+def test_dictionary_entries(entry_num: int, expected_text: str, zork_v3_dict: ZMachineDictionary):
     entry = zork_v3_dict.entry(entry_num)
     assert entry.text == expected_text
     assert len(entry.data) == 3

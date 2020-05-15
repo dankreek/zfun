@@ -1,4 +1,4 @@
-from .dictionary import Dictionary
+from .dictionary import ZMachineDictionary
 from .header import get_header, read_header, ZCodeHeader, StatusLineType
 from .input import ZMachineInput
 from .objects import ZMachineObject, ObjectTable
@@ -8,7 +8,7 @@ from .exc import UnsupportedVersionError, ZStringParseException
 from .variables import ZMachineVariables
 
 __all__ = [
-    'Dictionary',
+    'ZMachineDictionary',
     'get_header', 'read_header', 'ZCodeHeader', 'StatusLineType',
     'ZMachineInput',
     'ZMachineObject', 'ObjectTable',

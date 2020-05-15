@@ -10,7 +10,7 @@ class DictionaryEntry(NamedTuple):
     data: Union[memoryview, bytes]
 
 
-class Dictionary:
+class ZMachineDictionary:
     """ Z-Machine dictionary functionality """
 
     def __init__(self, memory: memoryview, header: ZCodeHeader):
@@ -48,7 +48,6 @@ class Dictionary:
     def encoded_text_len(self) -> int:
         """ Length (in bytes) of the encoded text for a dictionary entry for the Z-machine version """
 
-        # TODO: Should this be set as an abstract implementation for clarity later?
         # Version 1-3 have 3 byte (4 z-chars) encoded text length
         if self._version <= 3:
             return 4
