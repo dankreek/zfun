@@ -1,8 +1,10 @@
 import sys
 import lorem
 from io import BytesIO
-from zfun import ZMachineCursesScreenV3, get_header, ZCodeHeader, ZMachineVariables, ObjectTable
+from zfun import get_header, ZCodeHeader, ZMachineVariables, ObjectTable
 from typing import Tuple
+
+from tests.curses_screen import ZMachineCursesScreenV3
 
 
 def header_and_data(file_path: str) -> Tuple[ZCodeHeader, memoryview]:
