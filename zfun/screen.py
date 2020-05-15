@@ -406,6 +406,9 @@ class ZMachineCursesScreenV3(ZMachineScreen):
                     self._std_scr.move(new_y, new_x)
             elif key_pressed == curses.KEY_RESIZE:
                 self._handle_screen_resize(user_input)
+            elif key_pressed == curses.KEY_PPAGE:
+                # TODO: implement back scroll view
+                self._enter_view_back_scroll()
             elif 32 <= key_pressed <= 126:
                 # If the user has typed a regular key within the printable ASCII range
                 if len(user_input) >= max_len:
@@ -422,6 +425,9 @@ class ZMachineCursesScreenV3(ZMachineScreen):
         self._reset_last_prompt()
 
         return user_input
+
+    def _enter_view_back_scroll(self):
+        pass
 
     def terminate(self):
         curses.nocbreak()
