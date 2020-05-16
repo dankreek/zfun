@@ -1,3 +1,4 @@
+import math
 from itertools import zip_longest
 from enum import Enum
 
@@ -174,16 +175,32 @@ def z_string_to_str(memory, str_addr: int, abbrev_table_addr: int = None) -> str
     return bytes(z_string_to_ascii(memory, str_addr, abbrev_table_addr)).decode('ascii')
 
 
-def pack_z_chars(z_chars: List[int]) -> List[int]:
+def pack_z_chars(z_chars: List[int], byte_len: int = None) -> List[int]:
     """ Given a list of z-chars pack them into a properly terminated z-string.
 
     This function packs all the 5-bit z-chars into a list of 8-bit bytes, and
     adds the terminator bit to the 15th bit of the last word.
 
-    :param z_chars:
+    If a byte_len is specified, then the z-chars will be packed into the specified number
+    of bytes and padded with 0x05 if the string is too short, or truncated if the word is too
+    long. This is needed for encoding a string for dictionary lookups.
+
+    :param z_chars: List of 5-bit characters to pack
+    :param byte_len: The number of bytes to pack the string into, if it is required
     :return: Terminated z-string
     """
-    # Put all characters in groups of 3, using 0x04 as a padding character
+    assert byte_len is None or byte_len >= 2
+
+    if byte_len is not None:
+        num_words = math.ceil(byte_len / 2)
+        num_chars = num_words * 3
+
+        if len(z_chars) < num_chars:
+            z_chars += [SHIFT_TO_A2] * (num_chars - len(z_chars))
+        elif len(z_chars) > num_chars:
+            z_chars = z_chars[:num_chars]
+
+    # Put all characters in groups of 3, using 0x05 as a padding character
     groups = zip_longest(*([iter(z_chars)] * 3), fillvalue=SHIFT_TO_A2)
     output = []
 
@@ -195,10 +212,13 @@ def pack_z_chars(z_chars: List[int]) -> List[int]:
     hi_byte_i = len(output) - 2
     output[hi_byte_i] = output[hi_byte_i] + 0x80
 
+    if byte_len:
+        output = output[:byte_len]
+
     return output
 
 
-def z_string(pystring: str) -> bytes:
+def z_string(pystring: str, byte_len: int = None) -> bytes:
     """ Convert a Python string into a Z-string """
     z_chars = []
 
@@ -222,6 +242,6 @@ def z_string(pystring: str) -> bytes:
                 else:
                     raise ValueError(f'Could not translate char "{char}" into z-string char')
 
-    output = pack_z_chars(z_chars)
+    output = pack_z_chars(z_chars, byte_len)
     return bytes(output)
 
