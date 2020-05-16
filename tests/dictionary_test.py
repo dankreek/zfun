@@ -3,18 +3,6 @@ import pytest
 from zfun import ZMachineDictionary, get_header
 
 
-@pytest.fixture
-def zork_v5_dict(zork1_v5_data: memoryview) -> ZMachineDictionary:
-    header = get_header(zork1_v5_data)
-    yield ZMachineDictionary(zork1_v5_data, header)
-
-
-@pytest.fixture
-def zork_v3_dict(zork1_v3_data: memoryview) -> ZMachineDictionary:
-    header = get_header(zork1_v3_data)
-    yield ZMachineDictionary(zork1_v3_data, header)
-
-
 def test_dictionary_word_separators(zork_v3_dict: ZMachineDictionary):
     separators = zork_v3_dict.word_separators
     assert separators == [ord(','), ord('.'), ord('"')]
