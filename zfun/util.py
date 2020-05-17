@@ -1,3 +1,6 @@
+from typing import Union
+
+
 def read_word(memory: memoryview, offset: int):
     """ Read a word value from a memoryview.
 
@@ -68,3 +71,35 @@ def is_bit_set(memory: memoryview, offset: int, bit_num: int) -> bool:
     :return: True if the bit is set, False if not
     """
     return (memory[offset] & (1 << bit_num)) != 0
+
+
+def read_asciiz(memory: Union[memoryview, bytes], offset: int) -> str:
+    """ Read a 0-terminated ascii string from memory
+
+    :param memory: Memory to read from
+    :param offset: Offset to start reading string from
+    :return: The string read from memory
+    """
+    string = ''
+
+    for i in range(offset, len(memory)):
+        if memory[i] == 0:
+            return string
+        else:
+            string += chr(memory[i])
+
+    return string
+
+
+def write_asciiz(memory: memoryview, offset: int, string: str):
+    """ Write a 0-terminated ascii string to memory
+
+    :param memory: Memory to write to
+    :param offset: Offset in memory to write to
+    :param string: String to write
+    """
+    asciiz = [ord(char) for char in string]
+    asciiz.append(0)
+
+    memory[offset:offset + len(asciiz)] = bytes(asciiz)
+
