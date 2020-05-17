@@ -1,6 +1,7 @@
 from typing import List, Tuple, Union, NamedTuple
 
 from .dictionary import ZMachineDictionary
+from .util import write_word
 
 
 class WordAndOffset(NamedTuple):
@@ -54,14 +55,14 @@ def tokenize(memory: memoryview, dictionary: ZMachineDictionary, text_buffer: in
     word_offset = _next_word(memory, dictionary.word_separators, text_buffer + 1)
     while (word_offset is not None) and (token_i < max_tokens):
         if len(word_offset.word) > 0:
-            word_addr = dictionary.lookup_word(word_offset.word)
+            dict_word_addr = dictionary.lookup_word(word_offset.word)
             num_letters = len(word_offset.word)
-
-            # The token block is: byte address of dictionary word (or 0 if not found), number of letters in the word
-            # and the index of the word in the text buffer
-            token_block = [word_addr >> 8, word_addr & 0xff, num_letters, word_offset.offset - text_buffer]
             block_offset = parse_buffer + 2 + (token_i * 4)
-            memory[block_offset:block_offset+4] = bytes(token_block)
+
+            write_word(memory, block_offset, dict_word_addr)
+            memory[block_offset+2] = num_letters
+            memory[block_offset+3] = word_offset.offset - text_buffer
+
             token_i += 1
 
         word_offset = _next_word(memory, dictionary.word_separators, word_offset.next_offset)

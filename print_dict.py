@@ -1,6 +1,6 @@
 import sys
 from typing import Tuple
-from zfun import get_header, ZCodeHeader, ZMachineDictionary, z_string
+from zfun import get_header, ZCodeHeader, ZMachineDictionary
 
 
 def header_and_data(file_path: str) -> Tuple[ZCodeHeader, bytes]:
@@ -16,8 +16,7 @@ def main(argv):
 
     for i in range(0, dictionary.number_of_entries):
         entry = dictionary.entry(i)
-        dict_z_str = z_string(entry.text, dictionary.entry_length - 4)
-        print(f'{i} = ${entry.encoded_text.hex()} {entry.text} ${dict_z_str.hex()}')
+        print(f'{i} = {entry.text}')
 
     return 0
 
