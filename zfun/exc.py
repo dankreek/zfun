@@ -6,3 +6,7 @@ class UnsupportedVersionError(Exception):
 
 class ZStringParseException(Exception):
     pass
+
+
+class ZMachineStackUnderflow(Exception):
+    pass
