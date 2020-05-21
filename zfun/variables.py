@@ -1,14 +1,16 @@
 from .header import ZCodeHeader
 from .util import read_signed_word, read_word, write_word, write_signed_word
+from .stack import ZMachineStack
 
 from typing import Union
 
 
 class ZMachineVariables:
 
-    def __init__(self, memory: memoryview, header: ZCodeHeader):
+    def __init__(self, memory: memoryview, header: ZCodeHeader, stack: ZMachineStack):
         self._header = header
         self._memory = memory
+        self._stack = stack
 
     def global_val_bytes(self, var_num: int) -> memoryview:
         """ Get the value of the given global variable number. """
@@ -58,4 +60,24 @@ class ZMachineVariables:
         """
         var_offset = self._header.global_var_table_address + (var_num * 2)
         write_signed_word(self._memory, var_offset, val)
+
+    def var_val(self, var_num: int):
+        """ Get a variable value as defined by the Z-Machine spec.
+
+        $00 is the top of the stack
+        $01 - $0f are the local variables of the current routine
+        $10 - $ff are the global variables
+
+        :param var_num:
+        :return:
+        """
+        assert 0 <= var_num <= 0xff
+
+        if var_num == 0:
+            return self._stack.peek(0)
+        elif var_num < 0x10:
+            # XXX: Return local variable
+            pass
+        else:
+            return self.global_val(var_num - 0x10)
 
