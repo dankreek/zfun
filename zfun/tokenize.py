@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union, NamedTuple
+from typing import List, Union, NamedTuple
 
 from .dictionary import ZMachineDictionary
 from .util import write_word
