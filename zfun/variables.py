@@ -12,6 +12,7 @@ class ZMachineVariables:
         self._memory = memory
         self._stack = stack
 
+    # XXX: rename methods to be consistent with the stack's method names
     def global_val_bytes(self, var_num: int) -> memoryview:
         """ Get the value of the given global variable number. """
         var_offset = self._header.global_var_table_address + (var_num * 2)
@@ -61,7 +62,7 @@ class ZMachineVariables:
         var_offset = self._header.global_var_table_address + (var_num * 2)
         write_signed_word(self._memory, var_offset, val)
 
-    def var_val(self, var_num: int):
+    def var_val(self, var_num: int) -> Union[bytes, memoryview]:
         """ Get a variable value as defined by the Z-Machine spec.
 
         $00 is the top of the stack
@@ -74,10 +75,9 @@ class ZMachineVariables:
         assert 0 <= var_num <= 0xff
 
         if var_num == 0:
-            return self._stack.peek(0)
+            return self._stack.peek()
         elif var_num < 0x10:
-            # XXX: Return local variable
-            pass
+            return self._stack.local_var(var_num - 1)
         else:
-            return self.global_val(var_num - 0x10)
+            return self.global_val_bytes(var_num - 0x10)
 
