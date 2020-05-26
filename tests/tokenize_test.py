@@ -20,7 +20,6 @@ def read_token_block(memory: memoryview, parse_buf: int, token_num: int):
     )
 
 
-# XXX: Write an actual test
 def test_tokenize(zork_v3_dict: ZMachineDictionary):
     text_buffer_addr = 0
     parse_buffer_addr = 256
