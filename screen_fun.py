@@ -24,9 +24,9 @@ def main(argv):
 
     try:
         screen.initialize()
-        variables.set_global_val(0, 180)
+        variables.set_global(0, 180)
         variables.set_global_signed_val(1, 13)
-        variables.set_global_val(2, 2)
+        variables.set_global(2, 2)
 
         screen.is_status_displayed = True
 

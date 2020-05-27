@@ -124,7 +124,7 @@ class ZMachineOpcodeParser(ABC):
         """
         pass
 
-    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Union[None, Tuple], int]:
+    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Union[None, Tuple[bytes]], int]:
         """ Read the operands at the given address as the specified types.
 
         :param operands_addr: Address where operands are located
@@ -139,7 +139,7 @@ class ZMachineOpcodeParser(ABC):
         addr = operands_addr
         for op_type in operand_types:
             if op_type in [ZMachineOperandTypes.SMALL_CONSTANT, ZMachineOperandTypes.VARIABLE]:
-                operands.append(self._memory[addr])
+                operands.append(bytes(self._memory[addr:addr+1]))
                 addr += 1
             elif op_type == ZMachineOperandTypes.LARGE_CONSTANT:
                 operands.append(bytes(self._memory[addr:addr+2]))

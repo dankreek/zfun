@@ -23,7 +23,7 @@ def test_short_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(load.operand_types) == 1
     assert len(load.operands) == 1
     assert load.operand_types[0] == ZMachineOperandTypes.VARIABLE
-    assert load.operands[0] == 0
+    assert load.operands[0] == b'\x00'
     assert next_pc == 0x7d58 + 2
 
     # Zero operands
@@ -40,7 +40,7 @@ def test_long_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(add.operand_types) == 2
     assert len(add.operands) == 2
     assert add.operand_types == (ZMachineOperandTypes.VARIABLE, ZMachineOperandTypes.SMALL_CONSTANT)
-    assert add.operands == (1, 2)
+    assert add.operands == (b'\x01', b'\x02')
     assert next_pc == 0x4e83 + 3
 
 
@@ -54,7 +54,7 @@ def test_variable_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
         ZMachineOperandTypes.SMALL_CONSTANT,
         ZMachineOperandTypes.SMALL_CONSTANT
     )
-    assert call.operands == (0x88, 0x32, 0x12)
+    assert call.operands == (b'\x88', b'\x32', b'\x12')
     assert next_pc == 0x5157 + 5
 
     # Test unique variable opcode instructions

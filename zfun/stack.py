@@ -80,13 +80,25 @@ class ZMachineStack:
         assert 0 <= var_num <= 15, 'var_num must be between 0 and 15'
         return self.peek(self._frame_i + 2 + var_num)
 
-    def set_local_var(self, var_num: int, val: Union[bytes, memoryview]):
+    def set_local_var(self, var_num: int, val: Union[int, bytes, memoryview]):
         """ Set a value of the current routine's local variables.
 
         :param var_num: Local variable number
         :param val: Value to set the variable to
         """
         assert 0 <= var_num <= 15, 'var_num must be between 0 and 15'
+
+        if type(val) == int:
+            assert -32768 <= val <= 65535, 'integer must be with range of a signed or unsigned word'
+            if val < 0:
+                # store as a signed int
+                is_signed = True
+            else:
+                # store as an unsigned int
+                is_signed = False
+
+            val = val.to_bytes(2, 'big', signed=is_signed)
+
         self._stack[self._frame_i + 2 + var_num] = val
 
     def push_routine_call(self, ret_addr: int, num_locals: int, *local_vals: Union[int, bytes, memoryview]):
