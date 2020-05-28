@@ -20,7 +20,7 @@ class PropertiesTable(ABC):
         size: int
         number: int
         value: Union[bytes, memoryview]
-        next_prop_offset: int
+        next_prop_address: int
 
     def __init__(self, memory: memoryview, header: ZCodeHeader, table_addr: int):
         self._memory = memory
@@ -59,13 +59,11 @@ class PropertiesTable(ABC):
         else:
             return own_val
 
-    def own_property_val(self, prop_num: int) -> Union[None, bytes, memoryview]:
-        """ Get the value of the property explicitly set on this object.
-
-        If the property is not set, None is returned.
+    def own_property_address(self, prop_num: int) -> Union[None, int]:
+        """ Get the address of the property on this object.
 
         :param prop_num:
-        :return:
+        :return: Address of prop_num or None if not found.
         """
         next_prop_offset = self._properties_address
         while True:
@@ -74,9 +72,44 @@ class PropertiesTable(ABC):
             if prop is None:
                 return None
             elif prop.number == prop_num:
-                return prop.value
+                return next_prop_offset
             else:
-                next_prop_offset = prop.next_prop_offset
+                next_prop_offset = prop.next_prop_address
+
+    def first_own_property(self) -> Union[None, PropertyData]:
+        """ Get the first property (in memory) set on this object.
+
+        :return:
+        """
+        return self.property_at(self._memory, self._properties_address)
+
+    def own_property(self, prop_num: int) -> Union[None, PropertyData]:
+        """ Get property info for a property explicitly set on this object.
+
+        :param prop_num:
+        :return:
+        """
+        property_addr = self.own_property_address(prop_num)
+
+        if property_addr is not None:
+            return self.property_at(self._memory, property_addr)
+        else:
+            return None
+
+    def own_property_val(self, prop_num: int) -> Union[None, bytes, memoryview]:
+        """ Get the value of the property explicitly set on this object.
+
+        If the property is not set, None is returned.
+
+        :param prop_num:
+        :return:
+        """
+        prop_info = self.own_property(prop_num)
+
+        if prop_info is not None:
+            return prop_info.value
+        else:
+            return None
 
     @property
     def own_properties(self) -> Dict[int, Union[bytes, memoryview]]:
@@ -94,7 +127,7 @@ class PropertiesTable(ABC):
                 return props
             else:
                 props[prop.number] = prop.value
-                next_prop_offset = prop.next_prop_offset
+                next_prop_offset = prop.next_prop_address
 
     @abstractmethod
     def default_val(self, prop_num: int) -> Union[bytes, memoryview]:

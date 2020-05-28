@@ -74,3 +74,7 @@ def test_variable_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
         bytes([0xff, 0xff])
     )
     assert next_pc == 0x4f05 + 8
+
+
+def test_other_things_for_debugging(opcodes_v3: ZMachineOpcodeParserV3):
+    inc_instr, next_pc = opcodes_v3.parse(0x4ea9)

@@ -61,6 +61,8 @@ class ZMachineVariables:
         assert len(val) == 2, 'A 16 bit word is expected'
 
         if var_num == 0:
+            # Replace the value at the top of the stack
+            self._stack.pop()
             self._stack.push(val)
         elif var_num < 0x10:
             self._stack.set_local_var(var_num - 1, val)

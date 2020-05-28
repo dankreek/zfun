@@ -1,13 +1,13 @@
 import curses
 import textwrap
 
-from zfun import ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ObjectTable, StatusLineType
+from zfun import ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType
 from typing import List, Union, Tuple
 
 
 class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
-    def __init__(self, header: ZCodeHeader, variables: ZMachineVariables, obj_table: ObjectTable):
+    def __init__(self, header: ZCodeHeader, variables: ZMachineVariables, obj_table: ZMachineObjectTable):
         self._header = header
         self._variables = variables
 

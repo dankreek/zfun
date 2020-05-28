@@ -1,7 +1,7 @@
 import sys
 import lorem
 from io import BytesIO
-from zfun import get_header, ZCodeHeader, ZMachineVariables, ObjectTable
+from zfun import get_header, ZCodeHeader, ZMachineVariables, ZMachineObjectTable
 from typing import Tuple
 
 from tests.curses_screen import ZMachineCursesScreenV3
@@ -19,7 +19,7 @@ def header_and_data(file_path: str) -> Tuple[ZCodeHeader, memoryview]:
 def main(argv):
     header, data = header_and_data(argv[1])
     variables = ZMachineVariables(data, header)
-    obj_table = ObjectTable(data, header)
+    obj_table = ZMachineObjectTable(data, header)
     screen = ZMachineCursesScreenV3(header, variables, obj_table)
 
     try:

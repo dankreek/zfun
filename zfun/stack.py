@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Tuple
 from .exc import ZMachineStackUnderflow
 from .util import read_word, read_signed_word
 
@@ -78,7 +78,7 @@ class ZMachineStack:
         :return: Value of the local variable.
         """
         assert 0 <= var_num <= 15, 'var_num must be between 0 and 15'
-        return self.peek(self._frame_i + 2 + var_num)
+        return self.peek(self._frame_i + 3 + var_num)
 
     def set_local_var(self, var_num: int, val: Union[int, bytes, memoryview]):
         """ Set a value of the current routine's local variables.
@@ -99,19 +99,21 @@ class ZMachineStack:
 
             val = val.to_bytes(2, 'big', signed=is_signed)
 
-        self._stack[self._frame_i + 2 + var_num] = val
+        self._stack[self._frame_i + 3 + var_num] = val
 
-    def push_routine_call(self, ret_addr: int, num_locals: int, *local_vals: Union[int, bytes, memoryview]):
+    def push_routine_call(self, ret_addr: int, num_locals: int, res_var: int, *local_vals: Union[int, bytes, memoryview]):
         """ Push a routine call onto the stack.
 
         This is used to mark the position in the stack where the routine's local variables are stored.
 
         :param ret_addr: Address to return to after this routine is finished.
         :param num_locals: Number of local variables for the routine
+        :param res_var: Variable number to put the result value in
         :param local_vals: Initial values of all local variables. If no values are available, they will be set to 0.0
         """
         new_frame_i = len(self._stack)
         self.push(ret_addr)
+        self.push(res_var)
         self.push(self._frame_i)
         self._frame_i = new_frame_i
 
@@ -121,19 +123,21 @@ class ZMachineStack:
             except IndexError:
                 self.push(0)
 
-    def pop_routine_call(self) -> int:
+    def pop_routine_call(self) -> Tuple[int, int]:
         """ Remove the current routine's stack frame.
 
-        :return: The address to return to after cleaning up the current routine.
+        :return: The address to return to after cleaning up the current routine,
+                 and the variable number to store the result value in b
         """
         ret_addr = self.peek_int(self._frame_i)
-        prev_frame_i = self.peek_int(self._frame_i + 1)
+        res_var = self.peek_int(self._frame_i + 1)
+        prev_frame_i = self.peek_int(self._frame_i + 2)
 
         # Shrink stack back down to its size before this routine call
         self._stack = self._stack[:self._frame_i]
         self._frame_i = prev_frame_i
 
-        return ret_addr
+        return ret_addr, res_var
 
 
 

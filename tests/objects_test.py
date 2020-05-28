@@ -95,6 +95,12 @@ def test_object_name_prop_v5(obj_num: int, expected_name: str, zork_v5_obj_table
     assert zork_v5_obj_table.object(obj_num).properties.name == expected_name
 
 
+def test_first_own_property_v3(zork_v3_obj_table: ZMachineObjectTable):
+    door = zork_v3_obj_table.object(18)
+    first_prop = door.properties.first_own_property()
+    assert first_prop.number == 31
+
+
 def test_own_properties_v3(zork_v3_obj_table: ZMachineObjectTable):
     door = zork_v3_obj_table.object(181)
 

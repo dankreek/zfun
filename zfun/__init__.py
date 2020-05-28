@@ -1,7 +1,7 @@
 from .dictionary import ZMachineDictionary
 from .header import get_header, read_header, ZCodeHeader, StatusLineType
 from .input import ZMachineInput
-from .objects import ZMachineObject, ObjectTable
+from .objects import ZMachineObject, ZMachineObjectTable
 from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOperandTypes
 from .screen import ZMachineScreen
 from .stack import ZMachineStack
@@ -15,7 +15,7 @@ __all__ = [
     'ZMachineDictionary',
     'get_header', 'read_header', 'ZCodeHeader', 'StatusLineType',
     'ZMachineInput',
-    'ZMachineObject', 'ObjectTable',
+    'ZMachineObject', 'ZMachineObjectTable',
     'ZMachineOperandTypes', 'ZMachineOpcodeParser', 'ZMachineOpcodeParserV3',
     'ZMachineScreen',
     'ZMachineStack',
