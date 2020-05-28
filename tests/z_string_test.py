@@ -1,8 +1,6 @@
 import pytest
-import os.path as path
-import io
 
-from zfun import z_string_to_str, z_string, abbreviation_to_ascii, get_header
+from zfun import z_string_to_str, z_string, abbreviation_to_ascii, get_header, z_string_to_str_with_next
 
 
 def test_to_z_string():
@@ -38,5 +36,10 @@ def test_abbreviation_to_ascii(index, expected, zork1_v3_data: memoryview):
     assert bytes(ascii_list).decode('ascii') == expected
 
 
-def test_interpolating_abbreviations():
-    pass
+def test_parse_z_string_with_next():
+    test_str = 'There once was a genie with a 7 ft. weenie!'
+    encoded = z_string(test_str)
+    string, next_addr = z_string_to_str_with_next(encoded, 0)
+    assert next_addr == len(encoded)
+
+

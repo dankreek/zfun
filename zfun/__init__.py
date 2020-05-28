@@ -6,7 +6,7 @@ from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOpera
 from .screen import ZMachineScreen
 from .stack import ZMachineStack
 from .tokenize import tokenize
-from .z_string import z_string_to_str, z_string, abbreviation_to_ascii, z_string_to_ascii
+from .z_string import z_string_to_str, z_string, abbreviation_to_ascii, z_string_to_ascii, z_string_to_str_with_next
 from .exc import UnsupportedVersionError, ZStringParseException, ZMachineStackUnderflow
 from .variables import ZMachineVariables
 
@@ -20,7 +20,7 @@ __all__ = [
     'ZMachineScreen',
     'ZMachineStack',
     'tokenize',
-    'z_string_to_str', 'z_string', 'abbreviation_to_ascii', 'z_string_to_ascii',
+    'z_string_to_str', 'z_string', 'abbreviation_to_ascii', 'z_string_to_ascii', 'z_string_to_str_with_next',
     'UnsupportedVersionError', 'ZStringParseException', 'ZMachineStackUnderflow',
     'ZMachineVariables',
 ]
