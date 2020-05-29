@@ -31,7 +31,7 @@ class ZMachineVariables:
     def val(self, var_num: int) -> Union[bytes, memoryview]:
         """ Get a variable value as defined by the Z-Machine spec.
 
-        $00 is the top of the stack
+        $00 popped off of the stack
         $01 - $0f are the local variables of the current routine
         $10 - $ff are the global variables
 
@@ -41,7 +41,7 @@ class ZMachineVariables:
         assert 0 <= var_num <= 0xff
 
         if var_num == 0:
-            return self._stack.peek()
+            return self._stack.pop()
         elif var_num < 0x10:
             return self._stack.local_var(var_num - 1)
         else:
@@ -50,7 +50,7 @@ class ZMachineVariables:
     def set(self, var_num: int, val: Union[bytes, memoryview]):
         """ Store a value in a variable type
 
-        $00 is the top of the stack
+        $00 pushed onto the stack
         $01 - $0f are the local variables of the current routine
         $10 - $ff are the global variables
 
@@ -62,7 +62,6 @@ class ZMachineVariables:
 
         if var_num == 0:
             # Replace the value at the top of the stack
-            self._stack.pop()
             self._stack.push(val)
         elif var_num < 0x10:
             self._stack.set_local_var(var_num - 1, val)
