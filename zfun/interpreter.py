@@ -9,7 +9,7 @@ from .tokenize import tokenize
 from .z_string import z_string_to_str, z_string_to_str_with_next
 from .dictionary import ZMachineDictionary
 from .exc import ZMachineExitException, ZMachineUndefinedInstruction, ZMachineResetException
-from .util import read_word, read_signed_word, signed_word, word, write_word
+from .util import read_word, read_signed_word, signed_word, word, write_word, is_bit_set
 from .variables import ZMachineVariables
 from .screen import ZMachineScreen
 
@@ -116,28 +116,33 @@ class ZMachineInterpreter(ABC):
         :return: True if branch should happen on a true condition, and the offset of the branch if predicate is satisfied.
         """
         self._pc += 1
-        branch_byte = self._memory[self._pc]
+        first_branch_byte = self._memory[self._pc]
 
-        # If bit 7 is 0, the predicate is a False type
-        if (branch_byte & 0b1000_0000) == 0:
-            predicate = False
-        else:
+        # If bit 7 is set, the predicate is a True type
+        if is_bit_set(self._memory, self._pc, 7):
             predicate = True
+        else:
+            predicate = False
 
-        # If bit 6 is clear then the offset is a 14-bit signed int, using the rest of the bits in the next byte
-        if (branch_byte & 0b0100_0000) == 0:
-            # The offset is a 14-bit signed word, so pad the top bits with 0's if a positive number, 1's if negative
-            if (branch_byte & 0b0010_0000) == 0:
-                branch_byte &= 0b0001_1111
+        # If bit 6 is set, then the offset is an unsigned 6-bit number
+        if is_bit_set(self._memory, self._pc, 6):
+            # Mask off the predicate and number type bits
+            offset = (first_branch_byte & 0b0011_1111)
+        else:
+            # If bit 6 is clear then the offset is a 14-bit signed int, using the rest of the bits in
+            # this byte and all of the the next byte. Since we can only address 8 or 16 bit numbers the
+            # predicate and number type bits need to be padded with the same value as the sign bit.
+            if is_bit_set(self._memory, self._pc, 5):
+                # Pad with 1's since this is a negative number
+                first_branch_byte |= 0b1110_0000
             else:
-                branch_byte |= 0b1110_0000
+                # Pad with 0's since this is a positive number
+                first_branch_byte &= 0b0001_1111
 
             self._pc += 1
             next_branch_byte = self._memory[self._pc]
 
-            offset = read_signed_word(bytes([branch_byte, next_branch_byte]))
-        else:
-            offset = (branch_byte & 0b0011_0000)
+            offset = read_signed_word(bytes([first_branch_byte, next_branch_byte]))
 
         return predicate, offset
 
