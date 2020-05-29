@@ -20,3 +20,8 @@ class ZMachineExitException(Exception):
 class ZMachineUndefinedInstruction(Exception):
     """ Raised when an undefined instruction is attempted to be executed """
     pass
+
+
+class ZMachineResetException(Exception):
+    """ Raised when the z-machine would like to restart itself """
+    pass

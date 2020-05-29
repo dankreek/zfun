@@ -6,12 +6,15 @@ from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOpera
 from .objects import ZMachineObjectTable
 from .header import ZCodeHeader, get_header
 from .tokenize import tokenize
-from .z_string import z_string_to_str
+from .z_string import z_string_to_str, z_string_to_str_with_next
 from .dictionary import ZMachineDictionary
-from .exc import ZMachineExitException, ZMachineUndefinedInstruction
-from .util import read_word, read_signed_word, signed_word, word
+from .exc import ZMachineExitException, ZMachineUndefinedInstruction, ZMachineResetException
+from .util import read_word, read_signed_word, signed_word, word, write_word
 from .variables import ZMachineVariables
 from .screen import ZMachineScreen
+
+
+# XXX: use is_bit_set for various unwieldy mask bools
 
 
 class ZMachineInterpreter(ABC):
@@ -66,8 +69,28 @@ class ZMachineInterpreter(ABC):
         while True:
             try:
                 self.step()
+            except ZMachineResetException:
+                # TODO: Implement restarting game
+                pass
             except ZMachineExitException:
                 return
+
+    @abstractmethod
+    def save_handler(self, save_data: bytes) -> bool:
+        """ Save the save_data somewhere to be restored later.
+
+        :param save_data: Save game data
+        :return: True if save was successful, False if not
+        """
+        pass
+
+    @abstractmethod
+    def restore_handler(self) -> Union[bytes, None]:
+        """ Read save data from user and return it.
+
+        :return: Game state data, or None if loading data failed.
+        """
+        pass
 
     @staticmethod
     @abstractmethod
@@ -118,6 +141,15 @@ class ZMachineInterpreter(ABC):
 
         return predicate, offset
 
+    def _read_string_literal(self) -> str:
+        """ Reads a literal string after and instruction and increment PC
+
+        :return: String read after current instruction
+        """
+        string, next_pc = z_string_to_str_with_next(self._memory, self._pc)
+        self._pc = next_pc
+        return string
+
     def _operand_val(self, operand_num: int) -> int:
         """ Read the value of an operand as an integer.
 
@@ -165,6 +197,70 @@ class ZMachineInterpreter(ABC):
                 self._pc += offset - 2
 
     # --- Instructions are all defined below and executed via reflection ---
+
+    # 0OP instructions
+
+    def __opcode_rtrue(self):
+        next_pc, ret_var = self._stack.pop_routine_call()
+        self._variables.set(ret_var, word(1))
+        self._pc = next_pc
+
+    def __opcode_rfalse(self):
+        next_pc, ret_var = self._stack.pop_routine_call()
+        self._variables.set(ret_var, word(0))
+        self._pc = next_pc
+
+    def __opcode_print(self):
+        string = self._read_string_literal()
+        self._screen.print(string)
+
+    def __opcode_print_ret(self):
+        string = self._read_string_literal()
+        self._screen.print(string + '\n')
+
+        next_pc, ret_var = self._stack.pop_routine_call()
+        self._variables.set(ret_var, word(1))
+        self._pc = next_pc
+
+    def __opcode_nop(self):
+        pass
+
+    def __opcode_save(self):
+        predicate_type, offset = self._read_branch()
+        # TODO: Implement save game state
+        success = self.save_handler(bytes([]))
+        self._handle_branch(success == predicate_type, offset)
+
+    def __opcode_restore(self):
+        predicate_type, offset = self._read_branch()
+        # TODO: Implement restore game state
+        restore_data = self.restore_handler()
+
+    def __opcode_restart(self):
+        raise ZMachineResetException()
+
+    def __opcode_ret_popped(self):
+        ret_val = self._stack.pop()
+        next_pc, ret_var = self._stack.pop_routine_call()
+        self._variables.set(ret_var, ret_val)
+        self._pc = next_pc
+
+    def __opcode_pop(self):
+        self._stack.pop()
+
+    def __opcode_quit(self):
+        # When the quit instruction is executed, simply raise the exit exception.
+        raise ZMachineExitException()
+
+    def __opcode_new_line(self):
+        self._screen.print('\n')
+
+    def __opcode_show_status(self):
+        self._screen.is_status_displayed = True
+
+    def __opcode_verify(self):
+        # Technically supposed to verify the integrity of the game file, but not doing it
+        pass
 
     # 1OP instructions
 
@@ -468,9 +564,18 @@ class ZMachineInterpreter(ABC):
         # The address of the first instruction is directly after all the parameters
         self._pc = routine_address + 1 + (local_vars_count * 2)
 
-    def __opcode_quit(self):
-        # When the quit instruction is executed, simply raise the exit exception.
-        raise ZMachineExitException()
+    def __opcode_storew(self):
+        arr_addr = self._operand_val(0)
+        word_i = self._operand_val(1)
+        value = self._operand_val(2)
+        write_word(self._memory, arr_addr + (word_i * 2), value)
+
+    def __opcode_storeb(self):
+        arr_addr = self._operand_val(0)
+        byte_i = self._operand_val(1)
+        value = self._operand_val(2)
+        self._memory[arr_addr + byte_i] = value
+
 
 
 class ZMachineInterpreterV3(ZMachineInterpreter):
