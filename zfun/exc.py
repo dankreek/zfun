@@ -1,27 +1,34 @@
-
-
-class UnsupportedVersionError(Exception):
+class ZMachineException(Exception):
     pass
 
 
-class ZStringParseException(Exception):
+class UnsupportedVersionError(ZMachineException):
     pass
 
 
-class ZMachineStackUnderflow(Exception):
+class ZStringParseException(ZMachineException):
     pass
 
 
-class ZMachineExitException(Exception):
+class ZMachineStackUnderflow(ZMachineException):
+    pass
+
+
+class ZMachineExitException(ZMachineException):
     """ Raised then the z-machine `quit` instruction is executed. """
     pass
 
 
-class ZMachineUndefinedInstruction(Exception):
+class ZMachineUndefinedInstruction(ZMachineException):
     """ Raised when an undefined instruction is attempted to be executed """
     pass
 
 
-class ZMachineResetException(Exception):
+class ZMachineResetException(ZMachineException):
     """ Raised when the z-machine would like to restart itself """
+    pass
+
+
+class ZMachineIllegalOperation(ZMachineException):
+    """ Raised when an illegal operation of some kind occurs """
     pass

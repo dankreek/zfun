@@ -4,6 +4,7 @@ from typing import NamedTuple, Union, Tuple, Dict, Set, List
 from .header import ZCodeHeader
 from .z_string import z_string_to_str
 from .util import read_word, is_bit_set, set_bit, write_word
+from .exc import ZMachineIllegalOperation
 
 # Z-Machine Object
 # -----------------
@@ -17,6 +18,7 @@ from .util import read_word, is_bit_set, set_bit, write_word
 class PropertiesTable(ABC):
 
     class PropertyData(NamedTuple):
+        address: int
         size: int
         number: int
         value: Union[bytes, memoryview]
@@ -111,6 +113,38 @@ class PropertiesTable(ABC):
         else:
             return None
 
+    @abstractmethod
+    def property_value_address(self, property_address: int) -> int:
+        """ Get the address of a property's value
+
+        :param property_address: Address of the property
+        :return: Address of the property's value
+        """
+        pass
+
+    def set_own_property(self, prop_num: int, value: bytes):
+        """ Set the value of a property on this object.
+
+        :param prop_num: Property number to set
+        :param value: Value to set
+        """
+        prop_info = self.own_property(prop_num)
+
+        if prop_info is None:
+            raise ZMachineIllegalOperation(f'Property number {prop_num} not found on this object')
+
+        value_address = self.property_value_address(prop_info.address)
+
+        if (prop_info.size == 1) and (len(value) == 2):
+            # Use the LSB of the value passed in for the property value
+            self._memory[value_address] = value[1]
+        elif (prop_info.size == 1) and (len(value) == 1):
+            self._memory[value_address:value_address+1] = value
+        elif prop_info.size == 2 and (len(value) == 2):
+            self._memory[value_address:value_address+2] = value
+        else:
+            raise ZMachineIllegalOperation(f'Can not set a property value of size {prop_info.size} with a value of size {len(value)}')
+
     @property
     def own_properties(self) -> Dict[int, Union[bytes, memoryview]]:
         """ Get a dict of the properties explicitly set on the object.
@@ -167,48 +201,63 @@ class PropertiesTableV1(PropertiesTable):
             next_prop_offset = address + 1 + size
             val = memory[address + 1:next_prop_offset]
 
-            return PropertiesTable.PropertyData(size, number, val, next_prop_offset)
+            return PropertiesTable.PropertyData(address, size, number, val, next_prop_offset)
 
     def default_val(self, prop_num: int) -> Union[bytes, memoryview]:
         assert 0 <= prop_num <= 31, f'prop_num out of range for version {self._header.version}'
         return super().default_val(prop_num)
 
+    def property_value_address(self, property_address: int) -> int:
+        return property_address + 1
+
 
 class PropertiesTableV4(PropertiesTable):
+
+    @staticmethod
+    def _num_of_size_bytes(memory: memoryview, address: int):
+        """ Get the number of size bytes in the object property.
+
+        :param address: Address of property
+        :return: Number of bytes used to determine the size of the property. (1 or 2)
+        """
+        if is_bit_set(memory, address, 7):
+            # If the top bit is set then there is two size bytes
+            return 2
+        else:
+            # If the top bit is clear then there is one size byte (like V1 object properties)
+            return 1
 
     @staticmethod
     def property_at(memory: memoryview, address: int) -> Union[None, PropertiesTable.PropertyData]:
         if memory[address] == 0:
             return None
         else:
-            # If the top bit is clear then there is one size byte
-            if (memory[address] & 0x80) == 0:
-                size_bytes = 1
+            size_bytes = PropertiesTableV4._num_of_size_bytes(memory, address)
+            if size_bytes == 2:
+                size = memory[address + 1] & 0x3f
 
-                # XXX: Make be able to just use the V1 algorithm for this
+                if size == 0:
+                    size = 64
+            else:
                 # If bit 6 of the size byte is clear then the size is 1
                 if memory[address] & 0x20 == 0:
                     size = 1
                 # If it's set then the size is 2
                 else:
                     size = 2
-            # If the top bit is set then there is two size bytes
-            else:
-                size_bytes = 2
-                size = memory[address + 1] & 0x3f
-
-                if size == 0:
-                    size = 64
 
             next_prop_offset = address + size_bytes + size
             number = memory[address] & 0x3f
             val = memory[address + size_bytes:next_prop_offset]
 
-            return PropertiesTable.PropertyData(size, number, val, next_prop_offset)
+            return PropertiesTable.PropertyData(address, size, number, val, next_prop_offset)
 
     def default_val(self, prop_num: int) -> Union[bytes, memoryview]:
         assert 0 <= prop_num <= 63, f'prop_num out of range for version {self._header.version}'
         return super().default_val(prop_num)
+
+    def property_value_address(self, property_address: int):
+        return property_address + PropertiesTableV4._num_of_size_bytes(self._memory, property_address)
 
 
 class ZMachineObject(ABC):

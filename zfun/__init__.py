@@ -7,8 +7,12 @@ from .screen import ZMachineScreen
 from .stack import ZMachineStack
 from .tokenize import tokenize
 from .z_string import z_string_to_str, z_string, abbreviation_to_ascii, z_string_to_ascii, z_string_to_str_with_next
-from .exc import UnsupportedVersionError, ZStringParseException, ZMachineStackUnderflow, ZMachineResetException, ZMachineExitException
 from .variables import ZMachineVariables
+
+from .exc import (
+    UnsupportedVersionError, ZStringParseException, ZMachineStackUnderflow, ZMachineResetException,
+    ZMachineExitException, ZMachineIllegalOperation
+)
 
 
 __all__ = [
@@ -21,7 +25,8 @@ __all__ = [
     'ZMachineStack',
     'tokenize',
     'z_string_to_str', 'z_string', 'abbreviation_to_ascii', 'z_string_to_ascii', 'z_string_to_str_with_next',
-    'UnsupportedVersionError', 'ZStringParseException', 'ZMachineStackUnderflow', 'ZMachineResetException', 'ZMachineExitException',
     'ZMachineVariables',
+    'UnsupportedVersionError', 'ZStringParseException', 'ZMachineStackUnderflow', 'ZMachineResetException',
+    'ZMachineExitException', 'ZMachineIllegalOperation'
 ]
 
