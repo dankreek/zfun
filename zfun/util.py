@@ -1,8 +1,8 @@
 from typing import Union
 
 
-def read_word(memory: memoryview, offset: int = None) -> int:
-    """ Read an unsigned word value from a memoryview.
+def read_word(memory: Union[bytes, memoryview], offset: int = None) -> int:
+    """ Read an unsigned word value from bytes.
 
     :param memory: memory to read from
     :param offset: offset of the word inside of the memoryview, reads from start of memory if None
