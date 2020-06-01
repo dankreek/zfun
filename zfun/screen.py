@@ -2,6 +2,8 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from typing import Tuple
 
+from .stack import ZMachineStack
+
 
 class ColorCodes(Enum):
     BLACK = 2
@@ -24,8 +26,12 @@ class ZMachineScreen(ABC):
     LOWER_WIN = 2
 
     @abstractmethod
-    def initialize(self):
-        """ Initialize the screen and set all screen capabilities in the header """
+    def initialize(self, memory: memoryview, stack: ZMachineStack):
+        """ Initialize the screen and set all screen capabilities in the header
+
+        :param memory: Game memory
+        :param stack: Game stack
+        """
         pass
 
     @abstractmethod

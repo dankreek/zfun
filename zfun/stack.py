@@ -1,5 +1,5 @@
 from typing import Union, List, Tuple
-from .exc import ZMachineStackUnderflow
+from .exc import ZMachineException
 from .util import read_word, read_signed_word
 
 
@@ -140,6 +140,7 @@ class ZMachineStack:
         return ret_addr, res_var
 
 
-
+class ZMachineStackUnderflow(ZMachineException):
+    pass
 
 

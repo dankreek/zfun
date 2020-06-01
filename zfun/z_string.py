@@ -5,7 +5,12 @@ from enum import Enum
 from typing import List, Tuple
 
 from .util import is_bit_set, read_word
-from .exc import ZStringParseException
+from .exc import ZMachineException
+
+
+class ZStringParseException(ZMachineException):
+    pass
+
 
 ABBREV_TBL_1 = 1
 ABBREV_TBL_2 = 2

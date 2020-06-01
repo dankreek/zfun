@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Union, Tuple
 
 from .dictionary import ZMachineDictionary
+from .exc import ZMachineIllegalOperation, ZMachineException
 from .header import ZCodeHeader, get_header
 from .input import ZMachineInput
 from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOperandTypes
@@ -15,14 +16,6 @@ from .variables import ZMachineVariables
 from .z_string import z_string_to_str, z_string_to_str_with_next
 
 
-# XXX: Move interpreter exceptions into here?
-from .exc import (
-    ZMachineExitException, ZMachineUndefinedInstruction, ZMachineResetException, ZMachineIllegalOperation,
-    ZMachineException
-)
-
-
-# XXX: use is_bit_set for various unwieldy mask bools
 class ZMachineInterpreter(ABC):
     def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput):
         self._header = header
@@ -45,6 +38,16 @@ class ZMachineInterpreter(ABC):
         # for the opcode handling methods.
         self._operands = Union[None, Tuple[bytes]]
         self._operand_types = Union[None, Tuple[ZMachineOperandTypes]]
+
+    @abstractmethod
+    def initialize(self):
+        """ Initialize all header values for this version and call the screen's initialization. """
+        self._screen.initialize(self._memory, self._stack)
+
+    @abstractmethod
+    def terminate(self):
+        """ Free up all resources use by the interpreter. """
+        self._screen.terminate()
 
     @property
     def pc(self) -> int:
@@ -94,7 +97,11 @@ class ZMachineInterpreter(ABC):
 
                 # Call the opcode's handler method
                 self.__getattribute__(opcode_method_name)()
+        except (ZMachineExitException, ZMachineResetException) as e:
+            # These exceptions are expected so just reraise them
+            raise e
         except Exception as e:
+            # Any other exception should be wrapped in a ZMachineRuntimeException
             raise ZMachineRuntimeException(self, start_pc) from e
 
     def run(self, breakpoint_pc: int = None):
@@ -244,7 +251,6 @@ class ZMachineInterpreter(ABC):
             else:
                 self._pc += offset - 2
 
-    # XXX: Use _operand_bytes when conversion to int isn't needed
     # -------- Instructions are all defined below and executed via reflection --------
     # Opcode method name convention is '__opcode_' + name of opcode
 
@@ -275,17 +281,6 @@ class ZMachineInterpreter(ABC):
     def __opcode_nop(self):
         pass
 
-    def __opcode_save(self):
-        predicate_type, offset = self._read_branch()
-        # TODO: Implement save game state
-        success = self.save_handler(bytes([]))
-        self._handle_branch(success == predicate_type, offset)
-
-    def __opcode_restore(self):
-        predicate_type, offset = self._read_branch()
-        # TODO: Implement restore game state
-        restore_data = self.restore_handler()
-
     def __opcode_restart(self):
         raise ZMachineResetException()
 
@@ -295,22 +290,12 @@ class ZMachineInterpreter(ABC):
         self._variables.set(ret_var, ret_val)
         self._pc = next_pc
 
-    def __opcode_pop(self):
-        self._stack.pop()
-
     def __opcode_quit(self):
         # When the quit instruction is executed, simply raise the exit exception.
         raise ZMachineExitException()
 
     def __opcode_new_line(self):
         self._screen.print('\n')
-
-    def __opcode_show_status(self):
-        self._screen.is_status_displayed = True
-
-    def __opcode_verify(self):
-        # Technically supposed to verify the integrity of the game file, but not doing it
-        pass
 
     # 1OP instructions
 
@@ -351,12 +336,12 @@ class ZMachineInterpreter(ABC):
         self._variables.set(res_var, word(prop_data.size))
 
     def __opcode_inc(self):
-        var_num = self._operand_val(0)
+        var_num = self._signed_operand_val(0)
         cur_val = read_word(self._variables.val(var_num))
         self._variables.set(var_num, word(cur_val + 1))
 
     def __opcode_dec(self):
-        var_num = self._operand_val(0)
+        var_num = self._signed_operand_val(0)
         cur_val = read_word(self._variables.val(var_num))
         self._variables.set(var_num, word(cur_val - 1))
 
@@ -375,9 +360,9 @@ class ZMachineInterpreter(ABC):
         self._screen.print(obj.properties.name)
 
     def __opcode_ret(self):
-        ret_val = self._operand_val(0)
+        ret_val = self._operand_bytes(0)
         next_pc, res_var = self._stack.pop_routine_call()
-        self._variables.set(res_var, word(ret_val))
+        self._variables.set(res_var, ret_val)
         self._pc = next_pc
 
     def __opcode_jump(self):
@@ -392,16 +377,8 @@ class ZMachineInterpreter(ABC):
 
     def __opcode_load(self):
         res_var = self._read_res_var()
-        val = self._operand_val(0)
-        self._variables.set(res_var, word(val))
-
-    def __opcode_not(self):
-        # This is technically an unsigned operation, but using signed numbers to
-        # leverage Python's concept of an integer. Without using signed numbers
-        # the result of the operation may not fit in 16 bits
-        res_var = self._read_res_var()
-        val = self._signed_operand_val(0)
-        self._variables.set(res_var, signed_word(~val))
+        val = self._operand_bytes(0)
+        self._variables.set(res_var, val)
 
     # 2OP instructions
 
@@ -445,8 +422,8 @@ class ZMachineInterpreter(ABC):
         predicate_type, offset = self._read_branch()
         child_obj_num = self._operand_val(0)
         parent_obj_num = self._operand_val(1)
-        obj0 = self._obj_table.object(child_obj_num)
-        self._handle_branch(obj0.parent == parent_obj_num, predicate_type, offset)
+        obj = self._obj_table.object(child_obj_num)
+        self._handle_branch(obj.parent == parent_obj_num, predicate_type, offset)
 
     def __opcode_test(self):
         predicate_type, offset = self._read_branch()
@@ -587,6 +564,113 @@ class ZMachineInterpreter(ABC):
 
     # VAR OP instructions
 
+    def __opcode_storew(self):
+        arr_addr = self._operand_val(0)
+        word_i = self._operand_val(1)
+        value = self._operand_val(2)
+        write_word(self._memory, arr_addr + (word_i * 2), value)
+
+    def __opcode_storeb(self):
+        arr_addr = self._operand_val(0)
+        byte_i = self._operand_val(1)
+        value = self._operand_bytes(2)
+        self._memory[arr_addr + byte_i] = value
+
+    def __opcode_put_prop(self):
+        obj_num = self._operand_val(0)
+        prop_num = self._operand_val(1)
+        value = self._operand_bytes(2)
+
+        obj = self._obj_table.object(obj_num)
+        obj.properties.set_own_property(prop_num, value)
+
+    def __opcode_print_char(self):
+        char = self._operand_val(0)
+        self._screen.print(chr(char))
+
+    def __opcode_print_num(self):
+        num = self._signed_operand_val(0)
+        self._screen.print(str(num))
+
+    def __opcode_random(self):
+        res_var = self._read_res_var()
+        rnd_range = self._signed_operand_val(0)
+
+        if rnd_range == 0:
+            # Reseed generator with a random seed
+            random.seed()
+        elif rnd_range < 0:
+            # Seed generator with the operand value and return 0
+            random.seed(rnd_range)
+            self._variables.set(res_var, word(0))
+        else:
+            rnd_num = random.randint(1, rnd_range)
+            self._variables.set(res_var, rnd_num)
+
+    def __opcode_push(self):
+        val = self._operand_bytes(0)
+        self._stack.push(val)
+
+    def __sound_effect(self):
+        # TODO #11: Figure out how routing out sound is going to work
+        pass
+
+
+class ZMachineInterpreterV3(ZMachineInterpreter):
+
+    def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput):
+        assert header.version == 3, 'invalid z-code version for version interpreter'
+        super().__init__(header, memory, screen, keyboard)
+
+    def terminate(self):
+        super().terminate()
+
+    def save_handler(self, save_data: bytes) -> bool:
+        pass
+
+    def restore_handler(self) -> Union[bytes, None]:
+        pass
+
+    def initialize(self):
+        super().initialize()
+        self._header.is_file_split = False
+        self._header.is_transcription_on = False
+
+    @staticmethod
+    def expanded_packed_address(packed_address: int) -> int:
+        return packed_address * 2
+
+    # Version 3 specific opcodes
+
+    def __opcode_not(self):
+        # This is technically an unsigned operation, but using signed numbers to
+        # leverage Python's concept of an integer. Without using signed numbers
+        # the result of the operation may not fit in 16 bits
+        res_var = self._read_res_var()
+        val = self._signed_operand_val(0)
+        self._variables.set(res_var, signed_word(~val))
+
+    def __opcode_save(self):
+        predicate_type, offset = self._read_branch()
+        # TODO #12: Implement save game state
+        success = self.save_handler(bytes([]))
+        self._handle_branch(success == predicate_type, offset)
+
+    def __opcode_restore(self):
+        predicate_type, offset = self._read_branch()
+        # TODO #12: Implement restore game state
+        restore_data = self.restore_handler()
+
+    def __opcode_pop(self):
+        self._stack.pop()
+
+    def __opcode_show_status(self):
+        self._screen.is_status_displayed = True
+
+    def __opcode_verify(self):
+        # Technically supposed to verify the integrity of the game file, but not doing it
+        pass
+
     def __opcode_call(self):
         # The first operand contains the packed address of the routine to call.
         routine_address = self.expanded_packed_address(self._operands[0])
@@ -614,26 +698,6 @@ class ZMachineInterpreter(ABC):
         # The address of the first instruction is directly after all the parameters
         self._pc = routine_address + 1 + (local_vars_count * 2)
 
-    def __opcode_storew(self):
-        arr_addr = self._operand_val(0)
-        word_i = self._operand_val(1)
-        value = self._operand_val(2)
-        write_word(self._memory, arr_addr + (word_i * 2), value)
-
-    def __opcode_storeb(self):
-        arr_addr = self._operand_val(0)
-        byte_i = self._operand_val(1)
-        value = self._operand_val(2)
-        self._memory[arr_addr + byte_i] = value
-
-    def __opcode_put_prop(self):
-        obj_num = self._operand_val(0)
-        prop_num = self._operand_val(1)
-        value = self._operand_bytes(2)
-
-        obj = self._obj_table.object(obj_num)
-        obj.properties.set_own_property(prop_num, value)
-
     def __opcode_sread(self):
         text_buffer_address = self._operand_val(0)
         parse_buffer_address = self._operand_val(1)
@@ -651,33 +715,6 @@ class ZMachineInterpreter(ABC):
 
         # tokenize
         tokenize(self._memory, self._dictionary, text_buffer_address, parse_buffer_address)
-
-    def __opcode_print_char(self):
-        char = self._operand_val(0)
-        self._screen.print(chr(char))
-
-    def __opcode_print_num(self):
-        num = self._signed_operand_val(0)
-        self._screen.print(str(num))
-
-    def __opcode_random(self):
-        res_var = self._read_res_var()
-        range = self._signed_operand_val(0)
-
-        if range == 0:
-            # Reseed generator with a random seed
-            random.seed()
-        elif range < 0:
-            # Seed generator with the operand value and return 0
-            random.seed(range)
-            self._variables.set(res_var, word(0))
-        else:
-            rnd_num = random.randint(1, range)
-            self._variables.set(res_var, rnd_num)
-
-    def __opcode_push(self):
-        val = self._operand_bytes(0)
-        self._stack.push(val)
 
     def __opcode_pull(self):
         res_var = self._read_res_var()
@@ -700,21 +737,21 @@ class ZMachineInterpreter(ABC):
         # TODO #10: Figure out how this works
         raise NotImplemented('Still not sure how this works in V3')
 
-    def __sound_effect(self):
-        # TODO #11: Figure out how routing out sound is going to work
-        pass
 
 
-# XXX: Move V3-only opcodes into this class
-class ZMachineInterpreterV3(ABC, ZMachineInterpreter):
+class ZMachineExitException(ZMachineException):
+    """ Raised then the z-machine `quit` instruction is executed. """
+    pass
 
-    def __init__(self, header: ZCodeHeader, memory: memoryview):
-        assert header.version == 3, 'invalid z-code version for version interpreter'
-        super().__init__(header, memory)
 
-    @staticmethod
-    def expanded_packed_address(packed_address: int) -> int:
-        return packed_address * 2
+class ZMachineUndefinedInstruction(ZMachineException):
+    """ Raised when an undefined instruction is attempted to be executed """
+    pass
+
+
+class ZMachineResetException(ZMachineException):
+    """ Raised when the z-machine would like to restart itself """
+    pass
 
 
 class ZMachineRuntimeException(ZMachineException):

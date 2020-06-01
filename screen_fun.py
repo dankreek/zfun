@@ -1,7 +1,7 @@
 import sys
 import lorem
 from io import BytesIO
-from zfun import get_header, ZCodeHeader, ZMachineVariables, ZMachineObjectTable
+from zfun import get_header, ZCodeHeader, ZMachineInterpreterV3
 from typing import Tuple
 
 from tests.curses_screen import ZMachineCursesScreenV3
@@ -18,33 +18,14 @@ def header_and_data(file_path: str) -> Tuple[ZCodeHeader, memoryview]:
 
 def main(argv):
     header, data = header_and_data(argv[1])
-    variables = ZMachineVariables(data, header)
-    obj_table = ZMachineObjectTable(data, header)
-    screen = ZMachineCursesScreenV3(header, variables, obj_table)
+    screen = ZMachineCursesScreenV3()
+    interpreter = ZMachineInterpreterV3(header, data, screen, screen)
 
     try:
-        screen.initialize()
-        variables.set_global(0, 180)
-        variables.set_global_signed_val(1, 13)
-        variables.set_global(2, 2)
-
-        screen.is_status_displayed = True
-
-        for i in range(10):
-            screen.print(f'{i}\t' + lorem.paragraph() + '\n\n')
-
-        screen.print('>')
-        thing = screen.read_string(77)
-        screen.print(f'\nRead: {thing}\n\n')
-
-        for i in range(10, 12):
-            screen.print(f'{i}\t' + lorem.paragraph() + '\n\n')
-
-        screen.read_string(1)
-
-        return 0
+        interpreter.initialize()
+        interpreter.run()
     finally:
-        screen.terminate()
+        interpreter.terminate()
 
 
 if __name__ == '__main__':
