@@ -111,6 +111,9 @@ class ZMachineStack:
                 is_signed = False
 
             val = val.to_bytes(2, 'big', signed=is_signed)
+        elif len(val) == 1:
+            # Pad and 8-bit value with 0x00
+            val = b'\x00' + val
 
         self._stack[self._frame_i + 3 + var_num] = val
 

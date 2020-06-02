@@ -544,7 +544,7 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
         a = self._signed_operand_val(0)
         b = self._signed_operand_val(1)
-        self._variables.set(res_var, signed_word(a - b))
+        self._variables.set(res_var, signed_word(b - a))
 
     def _opcode__mul(self):
         res_var = self._read_res_var()
@@ -576,6 +576,14 @@ class ZMachineInterpreter(ABC):
         arr_addr = self._operand_val(0)
         byte_i = self._operand_val(1)
         value = self._operand_bytes(2)
+
+        # If the value is from a variable it will be 2 bytes, only store the LSB
+        if len(value) == 2:
+            value = value[1]
+        else:
+            # The value is a single byte so convert it to an int for memoryview
+            value = int.from_bytes(value, 'big')
+
         self._memory[arr_addr + byte_i] = value
 
     def _opcode__put_prop(self):

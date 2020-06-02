@@ -15,7 +15,7 @@ def v3_header_and_data(zork1_v3_data: memoryview) -> Tuple[ZCodeHeader, memoryvi
 def test_some_stuff(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
     header, memory = v3_header_and_data
     screen = MockScreen()
-    input = MockInput(['z'])
+    input = MockInput(['look'])
 
     interpreter = ZMachineInterpreterV3(header, memory, screen, input)
     interpreter.initialize()
