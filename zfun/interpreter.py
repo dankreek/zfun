@@ -176,7 +176,7 @@ class ZMachineInterpreter(ABC):
             # If bit 6 is set then the offset is a 14-bit signed int, using the rest of the bits in
             # this byte and all of the the next byte. Since we can only address 8 or 16 bit numbers the
             # predicate and number type bits need to be padded with the same value as the sign bit.
-            if is_bit_set(self._memory, self._pc + 1, 5):
+            if is_bit_set(self._memory, self._pc, 5):
                 # Pad with 1's since this is a negative number
                 first_branch_byte |= 0b1110_0000
             else:
