@@ -58,7 +58,10 @@ class ZMachineVariables:
         :param val:
         """
         assert 0 <= var_num <= 0xff
-        assert len(val) == 2, 'A 16 bit word is expected'
+        assert 1 <= len(val) <= 2, 'An 8 or 16 bit value is expected'
+
+        if len(val) == 1:
+            val = b'\x00' + val
 
         if var_num == 0:
             # Replace the value at the top of the stack

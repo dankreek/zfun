@@ -310,9 +310,6 @@ def test_set_own_property_v3(zork_v3_obj_table: ZMachineObjectTable):
     zorkmid.properties.set_own_property(18, b'\x12\x34')
     assert b'\x12\x34' == zorkmid.properties.own_property_val(18)
 
-    with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 1'):
-        zorkmid.properties.set_own_property(18, b'\x12')
-
     with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 3'):
         zorkmid.properties.set_own_property(18, b'\x12\x34\x56')
 
@@ -327,9 +324,6 @@ def test_set_own_property_v5(zork_v5_obj_table: ZMachineObjectTable):
 
     zorkmid.properties.set_own_property(46, b'\x12\x34')
     assert b'\x12\x34' == zorkmid.properties.own_property_val(46)
-
-    with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 1'):
-        zorkmid.properties.set_own_property(46, b'\x12')
 
     with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 3'):
         zorkmid.properties.set_own_property(46, b'\x12\x34\x56')

@@ -142,6 +142,8 @@ class PropertiesTable(ABC):
             self._memory[value_address:value_address+1] = value
         elif prop_info.size == 2 and (len(value) == 2):
             self._memory[value_address:value_address+2] = value
+        elif prop_info.size == 2 and (len(value) == 1):
+            self._memory[value_address:value_address+2] = b'\x00' + value
         else:
             raise ZMachineIllegalOperation(f'Can not set a property value of size {prop_info.size} with a value of size {len(value)}')
 
@@ -517,6 +519,7 @@ class ZMachineObjectTable(ABC):
         obj = self.object(obj_num)
 
         obj.sibling = parent.child
+        obj.parent = parent_obj_num
         parent.child = obj_num
 
     def obj_tree(self, obj_num: int) -> Dict[str, Union[ZMachineObject, List[ZMachineObject]]]:

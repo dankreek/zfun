@@ -1,10 +1,21 @@
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, NamedTuple
 from .exc import ZMachineException
 from .util import read_word, read_signed_word
 
 
+class ZMachineStackFrame(NamedTuple):
+    return_pc: Union[None, int]
+    result_var: Union[None, int]
+    prev_frame_i: Union[None, int]
+    stack: List[bytes]
+
+
 # TODO: Use raw memory to keep the stack to closer emulate how an 8-bit computer would implement a stack
 class ZMachineStack:
+
+    RET_PC_OFFSET = 0
+    RES_VAR_OFFSET = 1
+    PREV_FRAME_I_OFFSET = 2
 
     def __init__(self):
         self._stack: List[Union[bytes, memoryview]] = []
@@ -22,7 +33,9 @@ class ZMachineStack:
 
             x = x.to_bytes(2, 'big', signed=is_signed)
         else:
-            assert len(x) == 2, 'stack values must be 2 bytes long'
+            assert 1 <= len(x) <= 2, 'stack values must be 1 or 2 bytes long'
+            if len(x) == 1:
+                x = b'\x00' + x
 
         self._stack.append(x)
 
@@ -138,6 +151,31 @@ class ZMachineStack:
         self._frame_i = prev_frame_i
 
         return ret_addr, res_var
+
+    def stack_frames(self) -> List[ZMachineStackFrame]:
+        frames = []
+        frame_i = self._frame_i
+        last_frame_i = len(self._stack)
+
+        while last_frame_i != 0:
+            frames.insert(0, ZMachineStackFrame(
+                read_word(self._stack[frame_i + self.RET_PC_OFFSET]),
+                read_word(self._stack[frame_i + self.RES_VAR_OFFSET]),
+                read_word(self._stack[frame_i + self.PREV_FRAME_I_OFFSET]),
+                self._stack[frame_i+3:last_frame_i]
+            ))
+            last_frame_i = frame_i
+            frame_i = read_word(self._stack[frame_i + self.PREV_FRAME_I_OFFSET])
+
+        if last_frame_i != 0:
+            frames.insert(0, ZMachineStackFrame(
+                None,
+                None,
+                None,
+                self._stack[:last_frame_i]
+            ))
+
+        return frames
 
 
 class ZMachineStackUnderflow(ZMachineException):

@@ -128,5 +128,5 @@ def word(val: int) -> bytes:
     :return:
     """
     # To simulate underflow and overflow in a 16-bit machine, do all conversions at 32-bit and truncate
-    big_val = val.to_bytes(2, 'big', signed=False)
+    big_val = val.to_bytes(4, 'big', signed=False)
     return big_val[2:]
