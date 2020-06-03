@@ -1,21 +1,21 @@
 import pytest
 
-from zfun import get_header, ObjectTable
+from zfun import get_header, ZMachineObjectTable, ZMachineIllegalOperation
 
 
 @pytest.fixture
-def zork_v3_obj_table(zork1_v3_data: memoryview) -> ObjectTable:
+def zork_v3_obj_table(zork1_v3_data: memoryview) -> ZMachineObjectTable:
     header = get_header(zork1_v3_data)
-    yield ObjectTable(zork1_v3_data, header)
+    yield ZMachineObjectTable(zork1_v3_data, header)
 
 
 @pytest.fixture
-def zork_v5_obj_table(zork1_v5_data: memoryview) -> ObjectTable:
+def zork_v5_obj_table(zork1_v5_data: memoryview) -> ZMachineObjectTable:
     header = get_header(zork1_v5_data)
-    yield ObjectTable(zork1_v5_data, header)
+    yield ZMachineObjectTable(zork1_v5_data, header)
 
 
-def test_attributes_v3(zork_v3_obj_table: ObjectTable):
+def test_attributes_v3(zork_v3_obj_table: ZMachineObjectTable):
     cretin = zork_v3_obj_table.object(4)
     assert cretin.attributes == {0, 9, 14, 25}
 
@@ -42,7 +42,7 @@ def test_attributes_v3(zork_v3_obj_table: ObjectTable):
     assert cretin.attributes == set(range(32))
 
 
-def test_attributes_v5(zork_v5_obj_table: ObjectTable):
+def test_attributes_v5(zork_v5_obj_table: ZMachineObjectTable):
     cretin = zork_v5_obj_table.object(46)
     assert cretin.attributes == {16, 24, 30, 41}
 
@@ -69,7 +69,7 @@ def test_attributes_v5(zork_v5_obj_table: ObjectTable):
     assert cretin.attributes == set(range(48))
 
 
-def test_tree_v3(zork_v3_obj_table: ObjectTable):
+def test_tree_v3(zork_v3_obj_table: ZMachineObjectTable):
     west_of_house = zork_v3_obj_table.object(180)
     # XXX: finish object tree tests
     assert west_of_house.parent == 82
@@ -77,25 +77,31 @@ def test_tree_v3(zork_v3_obj_table: ObjectTable):
     assert west_of_house.sibling == 15
 
 
-def test_tree_v5(zork_v5_obj_table: ObjectTable):
+def test_tree_v5(zork_v5_obj_table: ZMachineObjectTable):
     pass
 
 
 prop_name_v3_cases = [(4, 'cretin'), (82, None), (180, 'West of House')]
 
 @pytest.mark.parametrize('obj_num,expected_name', prop_name_v3_cases)
-def test_object_name_prop_v3(obj_num: int, expected_name: str, zork_v3_obj_table: ObjectTable):
+def test_object_name_prop_v3(obj_num: int, expected_name: str, zork_v3_obj_table: ZMachineObjectTable):
     assert zork_v3_obj_table.object(obj_num).properties.name == expected_name
 
 
 prop_name_v5_cases = [(46, 'cretin'), (41, None), (68, 'West of House')]
 
 @pytest.mark.parametrize('obj_num,expected_name', prop_name_v5_cases)
-def test_object_name_prop_v5(obj_num: int, expected_name: str, zork_v5_obj_table: ObjectTable):
+def test_object_name_prop_v5(obj_num: int, expected_name: str, zork_v5_obj_table: ZMachineObjectTable):
     assert zork_v5_obj_table.object(obj_num).properties.name == expected_name
 
 
-def test_own_properties_v3(zork_v3_obj_table: ObjectTable):
+def test_first_own_property_v3(zork_v3_obj_table: ZMachineObjectTable):
+    door = zork_v3_obj_table.object(18)
+    first_prop = door.properties.first_own_property()
+    assert first_prop.number == 31
+
+
+def test_own_properties_v3(zork_v3_obj_table: ZMachineObjectTable):
     door = zork_v3_obj_table.object(181)
 
     # Get own properties
@@ -118,7 +124,7 @@ def test_own_properties_v3(zork_v3_obj_table: ObjectTable):
     assert own_properties[16] == door.properties.property_val(16)
 
 
-def test_default_properties_v3(zork_v3_obj_table: ObjectTable):
+def test_default_properties_v3(zork_v3_obj_table: ZMachineObjectTable):
     door = zork_v3_obj_table.object(181)
 
     # Get default properties and spot check
@@ -130,7 +136,7 @@ def test_default_properties_v3(zork_v3_obj_table: ObjectTable):
     assert default_31 == door.properties.property_val(31), 'default property 31 should have been returned'
 
 
-def test_own_properties_v5(zork_v5_obj_table: ObjectTable):
+def test_own_properties_v5(zork_v5_obj_table: ZMachineObjectTable):
     door = zork_v5_obj_table.object(127)
 
     # Get own properties
@@ -153,7 +159,7 @@ def test_own_properties_v5(zork_v5_obj_table: ObjectTable):
     assert own_properties[44] == door.properties.property_val(44)
 
 
-def test_default_properties_v5(zork_v5_obj_table: ObjectTable):
+def test_default_properties_v5(zork_v5_obj_table: ZMachineObjectTable):
     door = zork_v5_obj_table.object(127)
 
     # Get default properties and spot check
@@ -165,7 +171,7 @@ def test_default_properties_v5(zork_v5_obj_table: ObjectTable):
     assert default_63 == door.properties.property_val(63), 'default property 63 should have been returned'
 
 
-def test_remove_obj_from_parent_first_child_v3(zork_v3_obj_table: ObjectTable):
+def test_remove_obj_from_parent_first_child_v3(zork_v3_obj_table: ZMachineObjectTable):
     zork_v3_obj_table.remove_obj_from_parent(181)
     west_of_house_tree = zork_v3_obj_table.obj_tree(180)
 
@@ -177,7 +183,7 @@ def test_remove_obj_from_parent_first_child_v3(zork_v3_obj_table: ObjectTable):
     assert door_obj.sibling == 0, 'object should no longer have a sibling'
 
 
-def test_remove_obj_from_parent_first_child_v5(zork_v5_obj_table: ObjectTable):
+def test_remove_obj_from_parent_first_child_v5(zork_v5_obj_table: ZMachineObjectTable):
     zork_v5_obj_table.remove_obj_from_parent(239)
     west_of_house_tree = zork_v5_obj_table.obj_tree(68)
 
@@ -189,7 +195,7 @@ def test_remove_obj_from_parent_first_child_v5(zork_v5_obj_table: ObjectTable):
     assert small_mailbox_obj.sibling == 0, 'object should no longer have a sibling'
 
 
-def test_remove_obj_from_parent_middle_child_v3(zork_v3_obj_table: ObjectTable):
+def test_remove_obj_from_parent_middle_child_v3(zork_v3_obj_table: ZMachineObjectTable):
     zork_v3_obj_table.remove_obj_from_parent(91)
     maintenance_room_tree = zork_v3_obj_table.obj_tree(199)
 
@@ -202,7 +208,7 @@ def test_remove_obj_from_parent_middle_child_v3(zork_v3_obj_table: ObjectTable):
     assert wrench_obj.sibling == 0
 
 
-def test_remove_obj_from_parent_middle_child_v5(zork_v5_obj_table: ObjectTable):
+def test_remove_obj_from_parent_middle_child_v5(zork_v5_obj_table: ZMachineObjectTable):
     zork_v5_obj_table.remove_obj_from_parent(203)
     maintenance_room_tree = zork_v5_obj_table.obj_tree(233)
 
@@ -215,7 +221,7 @@ def test_remove_obj_from_parent_middle_child_v5(zork_v5_obj_table: ObjectTable):
     assert tube_obj.sibling == 0
 
 
-def test_remove_obj_from_parent_last_child_v3(zork_v3_obj_table: ObjectTable):
+def test_remove_obj_from_parent_last_child_v3(zork_v3_obj_table: ZMachineObjectTable):
     zork_v3_obj_table.remove_obj_from_parent(160)
     west_of_house_tree = zork_v3_obj_table.obj_tree(180)
 
@@ -227,7 +233,7 @@ def test_remove_obj_from_parent_last_child_v3(zork_v3_obj_table: ObjectTable):
     assert small_mailbox_obj.sibling == 0
 
 
-def test_remove_obj_from_parent_last_child_v5(zork_v5_obj_table: ObjectTable):
+def test_remove_obj_from_parent_last_child_v5(zork_v5_obj_table: ZMachineObjectTable):
     zork_v5_obj_table.remove_obj_from_parent(127)
     west_of_house_tree = zork_v5_obj_table.obj_tree(68)
 
@@ -239,7 +245,7 @@ def test_remove_obj_from_parent_last_child_v5(zork_v5_obj_table: ObjectTable):
     assert door_obj.sibling == 0
 
 
-def test_insert_child_without_parent_v3(zork_v3_obj_table: ObjectTable):
+def test_insert_child_without_parent_v3(zork_v3_obj_table: ZMachineObjectTable):
     zork_v3_obj_table.insert_child(4, 180)
 
     west_of_house_tree = zork_v3_obj_table.obj_tree(180)
@@ -247,7 +253,7 @@ def test_insert_child_without_parent_v3(zork_v3_obj_table: ObjectTable):
     assert west_of_house_tree['children'][0]['number'] == 4
 
 
-def test_insert_child_without_parent_v5(zork_v5_obj_table: ObjectTable):
+def test_insert_child_without_parent_v5(zork_v5_obj_table: ZMachineObjectTable):
     zork_v5_obj_table.insert_child(46, 68)
 
     west_of_house_tree = zork_v5_obj_table.obj_tree(68)
@@ -255,7 +261,7 @@ def test_insert_child_without_parent_v5(zork_v5_obj_table: ObjectTable):
     assert west_of_house_tree['children'][0]['number'] == 46
 
 
-def test_insert_child_with_parent_v3(zork_v3_obj_table: ObjectTable):
+def test_insert_child_with_parent_v3(zork_v3_obj_table: ZMachineObjectTable):
     # Take machine out of Machine room and put in West of House
     zork_v3_obj_table.insert_child(158, 180)
 
@@ -268,7 +274,7 @@ def test_insert_child_with_parent_v3(zork_v3_obj_table: ObjectTable):
     assert machine_room_tree['children'][0]['number'] == 112
 
 
-def test_insert_child_with_parent_v5(zork_v5_obj_table: ObjectTable):
+def test_insert_child_with_parent_v5(zork_v5_obj_table: ZMachineObjectTable):
     # Take machine out of Machine room and put in West of House
     zork_v5_obj_table.insert_child(215, 68)
 
@@ -281,3 +287,47 @@ def test_insert_child_with_parent_v5(zork_v5_obj_table: ObjectTable):
     assert machine_room_tree['children'][0]['number'] == 105
 
 
+def test_set_own_property_v3(zork_v3_obj_table: ZMachineObjectTable):
+    # Property #16 is a single-byte property
+    pair_of_hands = zork_v3_obj_table.object(1)
+
+    # Set with a single byte
+    pair_of_hands.properties.set_own_property(16, b'\x42')
+    assert b'\x42' == pair_of_hands.properties.own_property_val(16), \
+        'a single byte property is set with a single byte value'
+
+    # Set with two bytes
+    pair_of_hands.properties.set_own_property(16, b'\x42\x69')
+    assert b'\x69' == pair_of_hands.properties.own_property_val(16), \
+        'a single byte property is set with a two byte value'
+
+    with pytest.raises(ZMachineIllegalOperation, match='size 1 with a value of size 3'):
+        pair_of_hands.properties.set_own_property(16, b'\x00\x00\x00')
+
+    # Property #18 is a two-byte property
+    zorkmid = zork_v3_obj_table.object(2)
+
+    zorkmid.properties.set_own_property(18, b'\x12\x34')
+    assert b'\x12\x34' == zorkmid.properties.own_property_val(18)
+
+    with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 3'):
+        zorkmid.properties.set_own_property(18, b'\x12\x34\x56')
+
+    you = zork_v3_obj_table.object(5)
+    with pytest.raises(ZMachineIllegalOperation, match='size 8 with a value of size '):
+        you.properties.set_own_property(18, b'\x12\x34')
+
+
+def test_set_own_property_v5(zork_v5_obj_table: ZMachineObjectTable):
+    # Property #46 is a two-byte property
+    zorkmid = zork_v5_obj_table.object(122)
+
+    zorkmid.properties.set_own_property(46, b'\x12\x34')
+    assert b'\x12\x34' == zorkmid.properties.own_property_val(46)
+
+    with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 3'):
+        zorkmid.properties.set_own_property(46, b'\x12\x34\x56')
+
+    you = zork_v5_obj_table.object(21)
+    with pytest.raises(ZMachineIllegalOperation, match='size 8 with a value of size '):
+        you.properties.set_own_property(46, b'\x12\x34')

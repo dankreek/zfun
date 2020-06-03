@@ -1,6 +1,6 @@
 import sys
 from typing import Tuple
-from zfun import get_header, ZCodeHeader, ObjectTable
+from zfun import get_header, ZCodeHeader, ZMachineObjectTable
 
 
 def header_and_data(file_path: str) -> Tuple[ZCodeHeader, bytes]:
@@ -20,7 +20,7 @@ def print_obj_tree(obj_tree: dict, depth=0):
 
 def main(argv):
     header, data = header_and_data(argv[1])
-    obj_table = ObjectTable(data, header)
+    obj_table = ZMachineObjectTable(data, header)
 
     for i in range(1, 223):
         if obj_table.object(i).parent == 0:

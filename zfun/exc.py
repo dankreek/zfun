@@ -1,12 +1,11 @@
-
-
-class UnsupportedVersionError(Exception):
+class ZMachineException(Exception):
     pass
 
 
-class ZStringParseException(Exception):
+class UnsupportedVersionError(ZMachineException):
     pass
 
 
-class ZMachineStackUnderflow(Exception):
+class ZMachineIllegalOperation(ZMachineException):
+    """ Raised when an illegal operation of some kind occurs """
     pass

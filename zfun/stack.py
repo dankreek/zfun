@@ -1,10 +1,21 @@
-from typing import Union, List
-from .exc import ZMachineStackUnderflow
+from typing import Union, List, Tuple, NamedTuple
+from .exc import ZMachineException
 from .util import read_word, read_signed_word
+
+
+class ZMachineStackFrame(NamedTuple):
+    return_pc: Union[None, int]
+    result_var: Union[None, int]
+    prev_frame_i: Union[None, int]
+    stack: List[bytes]
 
 
 # TODO: Use raw memory to keep the stack to closer emulate how an 8-bit computer would implement a stack
 class ZMachineStack:
+
+    RET_PC_OFFSET = 0
+    RES_VAR_OFFSET = 1
+    PREV_FRAME_I_OFFSET = 2
 
     def __init__(self):
         self._stack: List[Union[bytes, memoryview]] = []
@@ -22,7 +33,9 @@ class ZMachineStack:
 
             x = x.to_bytes(2, 'big', signed=is_signed)
         else:
-            assert len(x) == 2, 'stack values must be 2 bytes long'
+            assert 1 <= len(x) <= 2, 'stack values must be 1 or 2 bytes long'
+            if len(x) == 1:
+                x = b'\x00' + x
 
         self._stack.append(x)
 
@@ -78,28 +91,45 @@ class ZMachineStack:
         :return: Value of the local variable.
         """
         assert 0 <= var_num <= 15, 'var_num must be between 0 and 15'
-        return self.peek(self._frame_i + 2 + var_num)
+        return self.peek(self._frame_i + 3 + var_num)
 
-    def set_local_var(self, var_num: int, val: Union[bytes, memoryview]):
+    def set_local_var(self, var_num: int, val: Union[int, bytes, memoryview]):
         """ Set a value of the current routine's local variables.
 
         :param var_num: Local variable number
         :param val: Value to set the variable to
         """
         assert 0 <= var_num <= 15, 'var_num must be between 0 and 15'
-        self._stack[self._frame_i + 2 + var_num] = val
 
-    def push_routine_call(self, ret_addr: int, num_locals: int, *local_vals: Union[int, bytes, memoryview]):
+        if type(val) == int:
+            assert -32768 <= val <= 65535, 'integer must be with range of a signed or unsigned word'
+            if val < 0:
+                # store as a signed int
+                is_signed = True
+            else:
+                # store as an unsigned int
+                is_signed = False
+
+            val = val.to_bytes(2, 'big', signed=is_signed)
+        elif len(val) == 1:
+            # Pad and 8-bit value with 0x00
+            val = b'\x00' + val
+
+        self._stack[self._frame_i + 3 + var_num] = val
+
+    def push_routine_call(self, ret_addr: int, num_locals: int, res_var: int, *local_vals: Union[int, bytes, memoryview]):
         """ Push a routine call onto the stack.
 
         This is used to mark the position in the stack where the routine's local variables are stored.
 
         :param ret_addr: Address to return to after this routine is finished.
         :param num_locals: Number of local variables for the routine
+        :param res_var: Variable number to put the result value in
         :param local_vals: Initial values of all local variables. If no values are available, they will be set to 0.0
         """
         new_frame_i = len(self._stack)
         self.push(ret_addr)
+        self.push(res_var)
         self.push(self._frame_i)
         self._frame_i = new_frame_i
 
@@ -109,21 +139,52 @@ class ZMachineStack:
             except IndexError:
                 self.push(0)
 
-    def pop_routine_call(self) -> int:
+    def pop_routine_call(self) -> Tuple[int, int]:
         """ Remove the current routine's stack frame.
 
-        :return: The address to return to after cleaning up the current routine.
+        :return: The address to return to after cleaning up the current routine,
+                 and the variable number to store the result value in b
         """
+        if len(self._stack) == 0:
+            raise ZMachineStackUnderflow('Can not return from main routine')
+
         ret_addr = self.peek_int(self._frame_i)
-        prev_frame_i = self.peek_int(self._frame_i + 1)
+        res_var = self.peek_int(self._frame_i + 1)
+        prev_frame_i = self.peek_int(self._frame_i + 2)
 
         # Shrink stack back down to its size before this routine call
         self._stack = self._stack[:self._frame_i]
         self._frame_i = prev_frame_i
 
-        return ret_addr
+        return ret_addr, res_var
+
+    def stack_frames(self) -> List[ZMachineStackFrame]:
+        frames = []
+        frame_i = self._frame_i
+        last_frame_i = len(self._stack)
+
+        while last_frame_i != 0:
+            frames.insert(0, ZMachineStackFrame(
+                read_word(self._stack[frame_i + self.RET_PC_OFFSET]),
+                read_word(self._stack[frame_i + self.RES_VAR_OFFSET]),
+                read_word(self._stack[frame_i + self.PREV_FRAME_I_OFFSET]),
+                self._stack[frame_i+3:last_frame_i]
+            ))
+            last_frame_i = frame_i
+            frame_i = read_word(self._stack[frame_i + self.PREV_FRAME_I_OFFSET])
+
+        if last_frame_i != 0:
+            frames.insert(0, ZMachineStackFrame(
+                None,
+                None,
+                None,
+                self._stack[:last_frame_i]
+            ))
+
+        return frames
 
 
-
+class ZMachineStackUnderflow(ZMachineException):
+    pass
 
 

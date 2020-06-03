@@ -86,17 +86,20 @@ class ZMachineOpcodeParser(ABC):
         operand_types = (first_operand_type, second_operand_type)
         return operand_types
 
-    def _parse_variable_operand_types(self, types_addr: int):
+    def _parse_variable_operand_types(self, types_addr: int, max_type_bytes: int = 1):
         next_pc = types_addr
 
         # Loop until the types list ends with OMITTED
         operand_types = self._variable_types_in_byte(self._memory[next_pc])
-        while operand_types[-1] != ZMachineOperandTypes.OMITTED:
-            next_pc += 1
+        next_pc += 1
+
+        while operand_types[-1] != ZMachineOperandTypes.OMITTED and ((next_pc - types_addr) < max_type_bytes):
             operand_types += self._variable_types_in_byte(self._memory[next_pc])
+            next_pc += 1
 
         # Filter out the OMITTED params
-        return tuple([op_type for op_type in operand_types if op_type != ZMachineOperandTypes.OMITTED]), (next_pc + 1)
+        types_list = [op_type for op_type in operand_types if op_type != ZMachineOperandTypes.OMITTED]
+        return tuple(types_list), next_pc
 
     @abstractmethod
     def short_form_opcode_name(self, opcode_byte) -> Union[None, str]:
@@ -124,7 +127,7 @@ class ZMachineOpcodeParser(ABC):
         """
         pass
 
-    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Union[None, Tuple], int]:
+    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Union[None, Tuple[bytes]], int]:
         """ Read the operands at the given address as the specified types.
 
         :param operands_addr: Address where operands are located
@@ -139,7 +142,7 @@ class ZMachineOpcodeParser(ABC):
         addr = operands_addr
         for op_type in operand_types:
             if op_type in [ZMachineOperandTypes.SMALL_CONSTANT, ZMachineOperandTypes.VARIABLE]:
-                operands.append(self._memory[addr])
+                operands.append(bytes(self._memory[addr:addr+1]))
                 addr += 1
             elif op_type == ZMachineOperandTypes.LARGE_CONSTANT:
                 operands.append(bytes(self._memory[addr:addr+2]))
@@ -184,7 +187,7 @@ class ZMachineOpcodeParser(ABC):
         if opcode_form == OpcodeForm.VARIABLE:
             opcode_name = self.variable_form_opcode_name(opcode_byte)
             # Variable operand types are stored in the byte/bytes following the opcode
-            operand_types, next_pc = self._parse_variable_operand_types(next_pc)
+            operand_types, next_pc = self._parse_variable_operand_types(next_pc, 1)
         elif opcode_form == OpcodeForm.SHORT:
             opcode_name = self.short_form_opcode_name(opcode_byte)
             # The short operand type is stored in the opcode byte itself

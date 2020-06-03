@@ -1,17 +1,16 @@
 import curses
 import textwrap
 
-from zfun import ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ObjectTable, StatusLineType
+from zfun import ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, get_header, ZMachineStack
 from typing import List, Union, Tuple
 
 
 class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
-    def __init__(self, header: ZCodeHeader, variables: ZMachineVariables, obj_table: ObjectTable):
-        self._header = header
-        self._variables = variables
-
-        self._obj_table = obj_table
+    def __init__(self):
+        self._header = Union[ZCodeHeader, None]
+        self._variables = Union[ZMachineVariables, None]
+        self._obj_table = Union[ZMachineObjectTable, None]
 
         # A history of every line sent to the main window, used for populating the back scroll
         self._main_win_history: List[str] = []
@@ -62,7 +61,11 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         return True
 
-    def initialize(self):
+    def initialize(self, memory: memoryview, stack: ZMachineStack):
+        self._header = get_header(memory)
+        self._variables = ZMachineVariables(memory, self._header, stack)
+        self._obj_table = ZMachineObjectTable(memory, self._header)
+
         # Standard curses initialization
         self._std_scr.clear()
         curses.noecho()     # don't echo keyboard input

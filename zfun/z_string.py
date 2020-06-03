@@ -2,10 +2,15 @@ import math
 from itertools import zip_longest
 from enum import Enum
 
-from typing import List
+from typing import List, Tuple
 
 from .util import is_bit_set, read_word
-from .exc import ZStringParseException
+from .exc import ZMachineException
+
+
+class ZStringParseException(ZMachineException):
+    pass
+
 
 ABBREV_TBL_1 = 1
 ABBREV_TBL_2 = 2
@@ -50,17 +55,17 @@ class ZStringAlphabet(Enum):
             return a2_table[zchar]
 
 
-def z_string_to_ascii(memory, str_offset: int, abbrev_table_offset: int = None) -> List[int]:
+def z_string_to_ascii(memory, str_address: int, abbrev_table_address: int = None) -> Tuple[List[int], int]:
     """ Read a Z-String from memory (v3 or higher) and return a list of ascii character codes.
 
     :param memory:
-    :param str_offset:
-    :param abbrev_table_offset:
-    :return: Z-String converted to ASCII character codes
+    :param str_address:
+    :param abbrev_table_address:
+    :return: Z-String converted to list of ASCII character codes, and the address directly after the end of the string
     """
     state = dict(
         alphabet=ZStringAlphabet.A0,
-        next_offset=str_offset,
+        next_offset=str_address,
         stop=False,
         zchars=None,
         zchars_idx=3,
@@ -114,14 +119,14 @@ def z_string_to_ascii(memory, str_offset: int, abbrev_table_offset: int = None) 
                     zscii_codes=None
                 )
         elif state['abbrev_idx']:
-            if abbrev_table_offset is None:
+            if abbrev_table_address is None:
                 raise ZStringParseException('No abbreviation table supplied')
             else:
                 full_abbrev_idx = ((state['abbrev_idx'] - 1) * 32) + zchar
-                state['output'].extend(abbreviation_to_ascii(memory, abbrev_table_offset, full_abbrev_idx))
+                state['output'].extend(abbreviation_to_ascii(memory, abbrev_table_address, full_abbrev_idx))
                 state['abbrev_idx'] = None
         elif ABBREV_TBL_1 <= zchar <= ABBREV_TBL_3:
-            if abbrev_table_offset is None:
+            if abbrev_table_address is None:
                 raise ZStringParseException('No abbreviation table supplied')
             else:
                 state['abbrev_idx'] = zchar
@@ -143,7 +148,7 @@ def z_string_to_ascii(memory, str_offset: int, abbrev_table_offset: int = None) 
         # inc next index into zchars array for next iteration
         state['zchars_idx'] += 1
 
-    return state['output']
+    return state['output'], state['next_offset']
 
 
 def abbreviation_to_ascii(memory, abbrev_table_addr: int, abbrev_index: int) -> List[int]:
@@ -161,7 +166,22 @@ def abbreviation_to_ascii(memory, abbrev_table_addr: int, abbrev_index: int) -> 
     """
     offset = abbrev_table_addr + (abbrev_index * 2)
     word_ptr = read_word(memory, offset) * 2
-    return z_string_to_ascii(memory, word_ptr)
+    ascii_list, _ = z_string_to_ascii(memory, word_ptr)
+    return ascii_list
+
+
+def z_string_to_str_with_next(memory, str_addr: int, abbrev_table_addr: int = None) -> Tuple[str, int]:
+    """ Convert a z-string to a Python string.
+
+    This function also returns the address of the next byte in memory after decoding the string.
+
+    :param memory:
+    :param str_addr:
+    :param abbrev_table_addr:
+    :return: Z-string converted to a Python string, and address of next byte in memory after decoding string
+    """
+    ascii_list, next_addr = z_string_to_ascii(memory, str_addr, abbrev_table_addr)
+    return bytes(ascii_list).decode('ascii'), next_addr
 
 
 def z_string_to_str(memory, str_addr: int, abbrev_table_addr: int = None) -> str:
@@ -172,7 +192,8 @@ def z_string_to_str(memory, str_addr: int, abbrev_table_addr: int = None) -> str
     :param abbrev_table_addr:
     :return: Z-string converted to a Python string
     """
-    return bytes(z_string_to_ascii(memory, str_addr, abbrev_table_addr)).decode('ascii')
+    string, _ = z_string_to_str_with_next(memory, str_addr, abbrev_table_addr)
+    return string
 
 
 def pack_z_chars(z_chars: List[int], byte_len: int = None) -> List[int]:

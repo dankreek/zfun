@@ -1,8 +1,10 @@
 import io
+from typing import Tuple, List
+
 import pytest
 import os.path as path
 
-from zfun import ZMachineDictionary, get_header
+from zfun import ZMachineDictionary, get_header, ZMachineScreen, ZMachineInput, ZMachineStack
 
 
 def _file_memorybuffer(file_name: str):
