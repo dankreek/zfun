@@ -70,3 +70,4 @@ def tokenize(memory: memoryview, dictionary: ZMachineDictionary, text_buffer: in
     # Write the number of tokens parsed into byte 1 of the parse buffer
     memory[parse_buffer + 1] = token_i
 
+    pass

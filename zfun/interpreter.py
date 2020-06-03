@@ -102,8 +102,7 @@ class ZMachineInterpreter(ABC):
             raise e
         except Exception as e:
             # Any other exception should be wrapped in a ZMachineRuntimeException
-            raise e
-            # raise ZMachineRuntimeException(self, start_pc) from e
+            raise ZMachineRuntimeException(self, start_pc) from e
 
     def run(self, breakpoint_pc: int = None):
         """ Run the Z-machine from the current PC until the machine quits.
@@ -478,8 +477,9 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
         arr_addr = self._operand_val(0)
         word_idx = self._operand_val(1)
-        ret_word = read_word(self._memory, arr_addr + (2 * word_idx))
-        self._variables.set(res_var, word(ret_word))
+        word_addr = arr_addr + (2 * word_idx)
+        ret_word = bytes(self._memory[word_addr:word_addr+2])
+        self._variables.set(res_var, ret_word)
 
     def _opcode__loadb(self):
         res_var = self._read_res_var()
@@ -690,20 +690,20 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
         # Each local variable's initial value is stored in the words following the word count byte
         initial_local_var_values = [
-            read_word(self._memory, routine_address + 1 + (i * 2))
+            # TODO: this syntax is a touch gross
+            word(read_word(self._memory, routine_address + 1 + (i * 2)))
             for i in range(local_vars_count)
         ]
+
+        # The additional operands of the call opcode are set in the new local vars
+        for local_var_num in range(len(self._operands) - 1):
+            initial_local_var_values[local_var_num] = self._operand_bytes(local_var_num+1)
 
         # The return value the variable number is stored in the byte after the operands
         res_var = self._read_res_var()
 
         # Add new frame to the stack for this routine
         self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
-
-        # The 2nd to nth operand contains the values to pass into the routine
-        # Passing values into a routine is accomplished by setting the local variables
-        for var_num in range(len(self._operands)-1):
-            self._stack.set_local_var(var_num, self._operands[var_num+1])
 
         # The address of the first instruction is directly after all the parameters
         self._pc = routine_address + 1 + (local_vars_count * 2)
@@ -725,6 +725,8 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
         # tokenize
         tokenize(self._memory, self._dictionary, text_buffer_address, parse_buffer_address)
+
+        pass
 
     def _opcode__pull(self):
         res_var = self._operand_val(0)

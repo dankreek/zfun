@@ -145,6 +145,9 @@ class ZMachineStack:
         :return: The address to return to after cleaning up the current routine,
                  and the variable number to store the result value in b
         """
+        if len(self._stack) == 0:
+            raise ZMachineStackUnderflow('Can not return from main routine')
+
         ret_addr = self.peek_int(self._frame_i)
         res_var = self.peek_int(self._frame_i + 1)
         prev_frame_i = self.peek_int(self._frame_i + 2)

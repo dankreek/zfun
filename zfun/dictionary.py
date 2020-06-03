@@ -90,12 +90,21 @@ class ZMachineDictionary:
             raise ValueError(f'Out of range, dictionary contains {self.number_of_entries} entries')
         else:
             entry_addr = self.entry_addr(entry_num)
-            encoded_text_len = self.entry_length - 4
+            return self.entry_at(entry_addr)
 
-            encoded_text = self._memory[entry_addr:entry_addr+encoded_text_len]
-            decoded_text = z_string_to_str(self._memory, entry_addr, self._abbrev_table_addr)
-            data = self._memory[entry_addr + self.decoded_text_len:entry_addr + self.entry_length]
-            return DictionaryEntry(decoded_text, encoded_text, data)
+    def entry_at(self, entry_addr: int) -> DictionaryEntry:
+        """ Get the dictionary entry at the given address.
+
+        :param entry_addr: Dictionary entry address
+        :return: Dictionary entry at address
+        """
+        encoded_text_len = self.entry_length - 4
+
+        encoded_text = self._memory[entry_addr:entry_addr+encoded_text_len]
+        decoded_text = z_string_to_str(self._memory, entry_addr, self._abbrev_table_addr)
+        data = self._memory[entry_addr + self.decoded_text_len:entry_addr + self.entry_length]
+        return DictionaryEntry(decoded_text, encoded_text, data)
+
 
     def lookup_word(self, word: str) -> int:
         """ Lookup a word in the dictionary and return its memory address.

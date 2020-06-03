@@ -52,6 +52,5 @@ class MockInput(ZMachineInput):
         try:
             return self._mock_reads.pop()
         except IndexError:
-            # Return empty string if nothing left to output
-            return ''
+            raise RuntimeError('Out of input')
 

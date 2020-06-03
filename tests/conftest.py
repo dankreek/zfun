@@ -7,7 +7,6 @@ import os.path as path
 from zfun import ZMachineDictionary, get_header, ZMachineScreen, ZMachineInput, ZMachineStack
 
 
-
 def _file_memorybuffer(file_name: str):
     file_path = path.join(path.dirname(__file__), file_name)
     with open(file_path, 'rb') as f:
