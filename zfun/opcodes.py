@@ -2,6 +2,8 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Union, Tuple, List
 
+from .data_structures import ZWord, ZByte, ZData
+
 
 class OpcodeForm(Enum):
     LONG = 0
@@ -25,10 +27,10 @@ class ZMachineOpcode(NamedTuple):
     operand_types: Union[None, Tuple[ZMachineOperandTypes]]
 
     """ Operand values for the opcode """
-    operands: Union[None, tuple]
+    operands: Union[None, Tuple[ZData]]
 
     """ Raw data for opcode and operands """
-    data: Union[bytes, memoryview]
+    data: bytes
 
 
 class ZMachineOpcodeParser(ABC):
@@ -127,7 +129,7 @@ class ZMachineOpcodeParser(ABC):
         """
         pass
 
-    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Union[None, Tuple[bytes]], int]:
+    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Union[None, Tuple[ZData]], int]:
         """ Read the operands at the given address as the specified types.
 
         :param operands_addr: Address where operands are located
@@ -137,15 +139,15 @@ class ZMachineOpcodeParser(ABC):
         if operand_types is None:
             return None, operands_addr
 
-        operands: List[bytes] = []
+        operands: List[ZData] = []
 
         addr = operands_addr
         for op_type in operand_types:
             if op_type in [ZMachineOperandTypes.SMALL_CONSTANT, ZMachineOperandTypes.VARIABLE]:
-                operands.append(bytes(self._memory[addr:addr+1]))
+                operands.append(ZByte.read(self._memory, addr))
                 addr += 1
             elif op_type == ZMachineOperandTypes.LARGE_CONSTANT:
-                operands.append(bytes(self._memory[addr:addr+2]))
+                operands.append(ZWord.read(self._memory, addr))
                 addr += 2
 
         return tuple(operands), addr
@@ -201,7 +203,7 @@ class ZMachineOpcodeParser(ABC):
 
         operands, next_pc = self._read_operands(next_pc, operand_types)
 
-        return ZMachineOpcode(opcode_name, operand_types, operands, self._memory[address:next_pc]), next_pc
+        return ZMachineOpcode(opcode_name, operand_types, operands, bytes(self._memory[address:next_pc])), next_pc
 
 
 short_form_1op_opcodes_v3 = [
