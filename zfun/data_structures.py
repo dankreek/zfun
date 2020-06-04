@@ -66,6 +66,10 @@ class ZData(ABC):
     def __truediv__(self, other):
         raise ZMachineIllegalOperation('Can not true-divide ZData')
 
+    def hex(self) -> str:
+        """ Get the value of ZData as a hex string. """
+        return self._value.hex()
+
     @abstractmethod
     def write(self, memory: memoryview, address: int):
         """ Write ZData to memory at the provided address.
