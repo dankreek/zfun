@@ -109,6 +109,9 @@ def test_zbyte_bitwise_operations():
     assert zb.is_bit_clear(0) is True
     assert zb.is_bit_clear(3) is False
 
+    assert ZByte.from_int(1) == ZByte(b'\x01')
+    assert ZByte.from_int(42) != ZByte(b'\x01')
+
 
 def test_zbyte_read_and_write_memory(zork1_v3_data: memoryview):
     zb = ZByte.read(zork1_v3_data, 0)
@@ -221,37 +224,40 @@ def test_zword_zword_math():
 
 
 def test_zword_bitwise_operations():
-    zb = ZWord.from_unsigned_int(0b1010_1010_1010_1010) << 1
-    assert zb.unsigned_int == 0b0101_0101_0101_0100
+    zw = ZWord.from_unsigned_int(0b1010_1010_1010_1010) << 1
+    assert zw.unsigned_int == 0b0101_0101_0101_0100
 
-    zb = ZWord.from_unsigned_int(0b0000_1111_0000_1111) << 4
-    assert zb.unsigned_int == 0b1111_0000_1111_0000
+    zw = ZWord.from_unsigned_int(0b0000_1111_0000_1111) << 4
+    assert zw.unsigned_int == 0b1111_0000_1111_0000
 
-    zb = ZWord.from_unsigned_int(0b0000_1111_1111_0000) >> 4
-    assert zb.unsigned_int == 0b0000_0000_1111_1111
+    zw = ZWord.from_unsigned_int(0b0000_1111_1111_0000) >> 4
+    assert zw.unsigned_int == 0b0000_0000_1111_1111
 
-    zb = ZWord.from_unsigned_int(0b0001_0000) >> 1
-    assert zb.unsigned_int == 0b0000_1000
+    zw = ZWord.from_unsigned_int(0b0001_0000) >> 1
+    assert zw.unsigned_int == 0b0000_1000
 
-    zb = ZWord.from_unsigned_int(0b1111_1111) & 0b0101_0101
-    assert zb.unsigned_int == 0b0101_0101
+    zw = ZWord.from_unsigned_int(0b1111_1111) & 0b0101_0101
+    assert zw.unsigned_int == 0b0101_0101
 
-    zb = ZWord.from_unsigned_int(0b1111_0000) | 0b0000_1111
-    assert zb.bytes == b'\x00\xff'
+    zw = ZWord.from_unsigned_int(0b1111_0000) | 0b0000_1111
+    assert zw.bytes == b'\x00\xff'
 
-    zb = ~ZWord.from_unsigned_int(0b0101_0101)
-    assert zb.unsigned_int == 0b1111_1111_1010_1010
+    zw = ~ZWord.from_unsigned_int(0b0101_0101)
+    assert zw.unsigned_int == 0b1111_1111_1010_1010
 
-    zb = ~ZWord.from_unsigned_int(0b0000_1111)
-    assert zb.unsigned_int == 0b1111_1111_1111_0000
+    zw = ~ZWord.from_unsigned_int(0b0000_1111)
+    assert zw.unsigned_int == 0b1111_1111_1111_0000
 
-    zb = ZWord.from_unsigned_int(0b1111_0000_1111_0000)
-    assert zb.is_bit_set(15) is True
-    assert zb.is_bit_set(0) is False
-    assert zb.is_bit_set(4) is True
-    assert zb.is_bit_clear(15) is False
-    assert zb.is_bit_clear(0) is True
-    assert zb.is_bit_clear(4) is False
+    zw = ZWord.from_unsigned_int(0b1111_0000_1111_0000)
+    assert zw.is_bit_set(15) is True
+    assert zw.is_bit_set(0) is False
+    assert zw.is_bit_set(4) is True
+    assert zw.is_bit_clear(15) is False
+    assert zw.is_bit_clear(0) is True
+    assert zw.is_bit_clear(4) is False
+
+    assert ZWord.from_int(-1) == ZWord(b'\xff\xff')
+    assert ZWord.from_int(-1) != ZWord(b'\x00\x00')
 
 
 def test_zword_read_and_write_memory(zork1_v3_data: memoryview):

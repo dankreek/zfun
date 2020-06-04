@@ -19,6 +19,15 @@ class ZData(ABC):
         return len(self._value)
 
     @abstractmethod
+    def __eq__(self, other):
+        """ Bitwise equivalence comparison.
+
+        :param other:
+        :return: True if the bit widths and set bits are the same
+        """
+        pass
+
+    @abstractmethod
     def __add__(self, other):
         pass
 
@@ -148,16 +157,25 @@ class ZData(ABC):
 
 class ZByte(ZData):
 
-    def __init__(self, value: Union[bytes, memoryview]):
+    def __init__(self, value: Union[ZData, bytes, memoryview]):
         if type(value) == memoryview:
             value = bytes(value)
+        elif type(value) == ZByte:
+            # Copy/cast constructor
+            value = value.bytes
         elif type(value) != bytes:
-            raise TypeError('ZByte value can only be set with bytes or memoryview')
+            raise TypeError('ZByte value can only be set with ZByte, bytes or memoryview')
 
         if len(value) != 1:
             raise ValueError('only one byte can be assigned to a ZByte')
 
         super().__init__(value)
+
+    def __eq__(self, other):
+        if type(other) != ZByte:
+            raise TypeError(f'can not compare a ZByte to {type(other)}')
+        else:
+            return self._value == other.bytes
 
     def _trunc_int(self, calc_size: int, res_size: int, value: int) -> bytes:
         bytes_val = value.to_bytes(calc_size, 'big', signed=True)
@@ -282,16 +300,25 @@ class ZByte(ZData):
 
 class ZWord(ZData):
 
-    def __init__(self, value: Union[bytes, memoryview]):
+    def __init__(self, value: Union[ZData, bytes, memoryview]):
         if type(value) == memoryview:
             value = bytes(value)
+        elif type(value) == ZWord:
+            # Copy/cast constructor
+            value = value.bytes
         elif type(value) != bytes:
-            raise TypeError('ZWord value can only be set with bytes or memoryview')
+            raise TypeError('ZWord value can only be set with ZWord, bytes or memoryview')
 
         if len(value) != 2:
             raise ValueError('only two bytes can be assigned to a ZWord')
 
         super().__init__(value)
+
+    def __eq__(self, other):
+        if type(other) != ZWord:
+            raise TypeError(f'can not compare a ZWord to {type(other)}')
+        else:
+            return self._value == other.bytes
 
     def _trunc_int(self, value: int):
         bytes_val = value.to_bytes(4, 'big', signed=True)
