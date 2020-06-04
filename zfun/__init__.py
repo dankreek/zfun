@@ -1,3 +1,4 @@
+from .data_structures import ZByte, ZWord
 from .dictionary import ZMachineDictionary
 from .header import get_header, read_header, ZCodeHeader, StatusLineType
 from .input import ZMachineInput
@@ -13,6 +14,7 @@ from .exc import UnsupportedVersionError, ZMachineIllegalOperation
 
 
 __all__ = [
+    'ZByte', 'ZWord',
     'ZMachineDictionary',
     'get_header', 'read_header', 'ZCodeHeader', 'StatusLineType',
     'ZMachineInput',
