@@ -155,7 +155,7 @@ class ZByte(ZData):
             raise TypeError('ZByte value can only be set with bytes or memoryview')
 
         if len(value) != 1:
-            raise TypeError('only one byte can be assigned to a ZByte')
+            raise ValueError('only one byte can be assigned to a ZByte')
 
         super().__init__(value)
 
@@ -164,7 +164,7 @@ class ZByte(ZData):
         return bytes_val[calc_size-res_size:]
 
     def __add__(self, other):
-        if not issubclass(ZData, other):
+        if not issubclass(type(other), ZData):
             raise TypeError('can only add ZData types')
 
         value = self.int + other.int
@@ -174,7 +174,7 @@ class ZByte(ZData):
             return ZByte(self._trunc_int(2, 1, value))
 
     def __sub__(self, other):
-        if not issubclass(ZData, other):
+        if not issubclass(type(other), ZData):
             raise TypeError('can only subtract ZData types')
 
         value = self.int - other.int
@@ -184,7 +184,7 @@ class ZByte(ZData):
             return ZByte(self._trunc_int(2, 1, value))
 
     def __mul__(self, other):
-        if not issubclass(ZData, other):
+        if not issubclass(type(other), ZData):
             raise TypeError('can only multiply ZData types')
 
         value = self.int * other.int
@@ -194,8 +194,10 @@ class ZByte(ZData):
             return ZByte(self._trunc_int(2, 1, value))
 
     def __floordiv__(self, other):
-        if not issubclass(ZData, other):
+        if not issubclass(type(other), ZData):
             raise TypeError('can only divide ZData types')
+        elif other.int == 0:
+            raise ZMachineIllegalOperation('Divide by zero')
 
         value = self.int // other.int
         if type(other) == ZWord:
@@ -214,8 +216,8 @@ class ZByte(ZData):
         if (type(other) != int) or (other < 0):
             raise TypeError('Can only shift by a positive integer')
 
-        value = self.int >> other
-        return ZByte(self._trunc_int(2, 1, value))
+        value = self.unsigned_int >> other
+        return ZByte(self._trunc_int(1, 1, value))
 
     def __and__(self, other):
         if (type(other) != int) or (0 > other > 255):
@@ -237,31 +239,31 @@ class ZByte(ZData):
 
     @staticmethod
     def from_int(value: int):
-        if -128 < value > 127:
-            raise TypeError('Can only create a signed byte from a value between -128 and 127')
-
-        return ZByte(value.to_bytes(1, 'big', signed=True))
+        try:
+            return ZByte(value.to_bytes(1, 'big', signed=True))
+        except OverflowError:
+            raise ValueError('Can only create a signed byte from a value between -128 and 127')
 
     @staticmethod
     def from_unsigned_int(value: int):
-        if 0 < value > 255:
-            raise TypeError('Can only create an unsigned byte from a value between 0 and 255')
-
-        return ZByte(value.to_bytes(1, 'big', signed=False))
+        try:
+            return ZByte(value.to_bytes(1, 'big', signed=False))
+        except OverflowError:
+            raise ValueError('Can only create an unsigned byte from a value between 0 and 255')
 
     def inc(self, amount: int = 1):
         new_val = self.unsigned_int + amount
 
         # Convert to 2 byte value to allow for over/underflow
         bytes_val = new_val.to_bytes(2, 'big', signed=False)
-        return ZWord(bytes_val[1:])
+        return ZByte(bytes_val[1:])
 
     def dec(self, amount: int = 1):
         new_val = self.unsigned_int - amount
 
         # Convert to 2 byte value to allow for over/underflow
-        bytes_val = new_val.to_bytes(2, 'big', signed=False)
-        return ZWord(bytes_val[1:])
+        bytes_val = new_val.to_bytes(2, 'big', signed=True)
+        return ZByte(bytes_val[1:])
 
     def write(self, memory: memoryview, address: int):
         memory[address:address+1] = self._value
@@ -287,7 +289,7 @@ class ZWord(ZData):
             raise TypeError('ZWord value can only be set with bytes or memoryview')
 
         if len(value) != 2:
-            raise TypeError('only two bytes can be assigned to a ZWord')
+            raise ValueError('only two bytes can be assigned to a ZWord')
 
         super().__init__(value)
 
@@ -296,29 +298,31 @@ class ZWord(ZData):
         return bytes_val[2:]
 
     def __add__(self, other):
-        if not issubclass(ZData, other.__type__):
+        if not issubclass(type(other), ZData):
             raise ValueError('Can only add to another ZData type')
 
         value = self.int + other.int
         return ZWord(self._trunc_int(value))
 
     def __sub__(self, other):
-        if not issubclass(ZData, other.__type__):
+        if not issubclass(type(other), ZData):
             raise ValueError('Can only subtract from another ZData type')
 
         value = self.int - other.int
         return ZWord(self._trunc_int(value))
 
     def __mul__(self, other):
-        if not issubclass(ZData, other.__type__):
+        if not issubclass(type(other), ZData):
             raise ValueError('Can only multiply with another ZData type')
 
         value = self.int * other.int
         return ZWord(self._trunc_int(value))
 
     def __floordiv__(self, other):
-        if not issubclass(ZData, other.__type__):
+        if not issubclass(type(other), ZData):
             raise ValueError('Can only divide by another ZData type')
+        elif other.int == 0:
+            raise ZMachineIllegalOperation('Divide by zero')
 
         value = self.int // other.int
         return ZWord(self._trunc_int(value))
@@ -341,8 +345,8 @@ class ZWord(ZData):
         if (type(other) != int) or (0 > other > 65535):
             raise TypeError('Can only apply bitwise operations with an integer between 0 and 65535')
 
-        value = self.int & other
-        return ZWord.from_int(value)
+        value = self.unsigned_int & other
+        return ZWord.from_unsigned_int(value)
 
     def __or__(self, other):
         if (type(other) != int) or (0 > other > 65535):
@@ -357,30 +361,30 @@ class ZWord(ZData):
 
     @staticmethod
     def from_int(value: int):
-        if -32768 < value > 32767:
-            raise TypeError('Can only create a ZWord from a value between -32768 and 32767')
-
-        return ZWord(value.to_bytes(2, 'big', signed=True))
+        try:
+            return ZWord(value.to_bytes(2, 'big', signed=True))
+        except OverflowError:
+            raise ValueError('Can only create a ZWord from a value between -32768 and 32767')
 
     @staticmethod
     def from_unsigned_int(value: int):
-        if 0 < value > 65535:
-            raise TypeError('Can only create a ZWord from a value between 0 and 65535')
-
-        return ZWord(value.to_bytes(2, 'big', signed=False))
+        try:
+            return ZWord(value.to_bytes(2, 'big', signed=False))
+        except OverflowError:
+            raise ValueError('Can only create a ZWord from a value between 0 and 65535')
 
     def inc(self, amount: int = 1):
         new_val = self.unsigned_int + amount
 
         # Convert to 3 byte value to allow for over/underflow
-        bytes_val = new_val.to_bytes(3, 'big', signed=False)
+        bytes_val = new_val.to_bytes(3, 'big', signed=True)
         return ZWord(bytes_val[1:])
 
     def dec(self, amount: int = 1):
         new_val = self.unsigned_int - amount
 
         # Convert to 3 byte value to allow for over/underflow
-        bytes_val = new_val.to_bytes(3, 'big', signed=False)
+        bytes_val = new_val.to_bytes(3, 'big', signed=True)
         return ZWord(bytes_val[1:])
 
     def write(self, memory: memoryview, address: int):
