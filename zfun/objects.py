@@ -5,6 +5,7 @@ from .header import ZCodeHeader
 from .z_string import z_string_to_str
 from .util import read_word, is_bit_set, set_bit, write_word
 from .exc import ZMachineIllegalOperation
+from .data_structures import ZData, ZWord, ZByte
 
 # Z-Machine Object
 # -----------------
@@ -21,7 +22,7 @@ class PropertiesTable(ABC):
         address: int
         size: int
         number: int
-        value: Union[bytes, memoryview]
+        value: Union[ZData, bytes]
         next_prop_address: int
 
     def __init__(self, memory: memoryview, header: ZCodeHeader, table_addr: int):
@@ -46,7 +47,7 @@ class PropertiesTable(ABC):
         else:
             return None
 
-    def property_val(self, prop_num: int) -> Union[bytes, memoryview]:
+    def property_val(self, prop_num: int) -> Union[ZData, bytes]:
         """ Get the value of the property number.
 
         If the property isn't defined on the object then the default value is returned.
@@ -98,7 +99,7 @@ class PropertiesTable(ABC):
         else:
             return None
 
-    def own_property_val(self, prop_num: int) -> Union[None, bytes, memoryview]:
+    def own_property_val(self, prop_num: int) -> Union[None, ZData, bytes]:
         """ Get the value of the property explicitly set on this object.
 
         If the property is not set, None is returned.
@@ -122,7 +123,7 @@ class PropertiesTable(ABC):
         """
         pass
 
-    def set_own_property(self, prop_num: int, value: bytes):
+    def set_own_property(self, prop_num: int, value: ZData):
         """ Set the value of a property on this object.
 
         :param prop_num: Property number to set
@@ -136,19 +137,15 @@ class PropertiesTable(ABC):
         value_address = self.property_value_address(prop_info.address)
 
         if (prop_info.size == 1) and (len(value) == 2):
-            # Use the LSB of the value passed in for the property value
-            self._memory[value_address] = value[1]
-        elif (prop_info.size == 1) and (len(value) == 1):
-            self._memory[value_address:value_address+1] = value
-        elif prop_info.size == 2 and (len(value) == 2):
-            self._memory[value_address:value_address+2] = value
-        elif prop_info.size == 2 and (len(value) == 1):
-            self._memory[value_address:value_address+2] = b'\x00' + value
+            byte_val = ZByte.from_int(value.int)
+            byte_val.write(self._memory, value_address)
+        elif prop_info.size == len(value):
+            value.write(self._memory, value_address)
         else:
             raise ZMachineIllegalOperation(f'Can not set a property value of size {prop_info.size} with a value of size {len(value)}')
 
     @property
-    def own_properties(self) -> Dict[int, Union[bytes, memoryview]]:
+    def own_properties(self) -> Dict[int, Union[ZData, bytes]]:
         """ Get a dict of the properties explicitly set on the object.
 
         :return: A dict of property numbers -> values
@@ -166,15 +163,15 @@ class PropertiesTable(ABC):
                 next_prop_offset = prop.next_prop_address
 
     @abstractmethod
-    def default_val(self, prop_num: int) -> Union[bytes, memoryview]:
+    def default_val(self, prop_num: int) -> ZWord:
         """ Get the default value of the provided property number.
 
         :param prop_num:
         :return: Default value of prop_num
         """
         # each default is a word so the offset is 2 * prop_num
-        offset = self._default_properties_address + (prop_num * 2)
-        return self._memory[offset:offset+2]
+        address = self._default_properties_address + (prop_num * 2)
+        return ZWord.read(self._memory, address)
 
     @staticmethod
     @abstractmethod
@@ -201,11 +198,17 @@ class PropertiesTableV1(PropertiesTable):
             size = (memory[address] >> 5) + 1
             number = (memory[address] & 0x1f)
             next_prop_offset = address + 1 + size
-            val = memory[address + 1:next_prop_offset]
+
+            if size == 1:
+                val = ZByte.read(memory, address + 1)
+            elif size == 2:
+                val = ZWord.read(memory, address + 1)
+            else:
+                val = bytes(memory[address + 1:next_prop_offset])
 
             return PropertiesTable.PropertyData(address, size, number, val, next_prop_offset)
 
-    def default_val(self, prop_num: int) -> Union[bytes, memoryview]:
+    def default_val(self, prop_num: int) -> ZWord:
         assert 0 <= prop_num <= 31, f'prop_num out of range for version {self._header.version}'
         return super().default_val(prop_num)
 
@@ -250,11 +253,18 @@ class PropertiesTableV4(PropertiesTable):
 
             next_prop_offset = address + size_bytes + size
             number = memory[address] & 0x3f
-            val = memory[address + size_bytes:next_prop_offset]
+            val_address = address + size_bytes
+
+            if size == 1:
+                val = ZByte.read(memory, val_address)
+            elif size == 2:
+                val = ZWord.read(memory, val_address)
+            else:
+                val = bytes(memory[val_address:next_prop_offset])
 
             return PropertiesTable.PropertyData(address, size, number, val, next_prop_offset)
 
-    def default_val(self, prop_num: int) -> Union[bytes, memoryview]:
+    def default_val(self, prop_num: int) -> ZWord:
         assert 0 <= prop_num <= 63, f'prop_num out of range for version {self._header.version}'
         return super().default_val(prop_num)
 
@@ -380,7 +390,7 @@ class ZMachineObjectV1(ZMachineObject):
 
     @parent.setter
     def parent(self, obj_num: int):
-        self._memory[self._addr + 4] = obj_num
+        ZByte.from_unsigned_int(obj_num).write(self._memory, self._addr + 4)
 
     @property
     def sibling(self) -> int:
@@ -388,7 +398,7 @@ class ZMachineObjectV1(ZMachineObject):
 
     @sibling.setter
     def sibling(self, obj_num: int):
-        self._memory[self._addr + 5] = obj_num
+        ZByte.from_unsigned_int(obj_num).write(self._memory, self._addr + 5)
 
     @property
     def child(self) -> int:
@@ -396,7 +406,7 @@ class ZMachineObjectV1(ZMachineObject):
 
     @child.setter
     def child(self, obj_num: int):
-        self._memory[self._addr + 6] = obj_num
+        ZByte.from_unsigned_int(obj_num).write(self._memory, self._addr + 6)
 
     @property
     def properties(self) -> PropertiesTable:
@@ -422,27 +432,27 @@ class ZMachineObjectV4(ZMachineObject):
 
     @property
     def parent(self) -> int:
-        return read_word(self._memory, self._addr + 6)
+        return ZWord.read(self._memory, self._addr + 6).unsigned_int
 
     @parent.setter
     def parent(self, obj_num: int):
-        write_word(self._memory, self._addr + 6, obj_num)
+        ZWord.from_unsigned_int(obj_num).write(self._memory, self._addr + 6)
 
     @property
     def sibling(self) -> int:
-        return read_word(self._memory, self._addr + 8)
+        return ZWord.read(self._memory, self._addr + 8).unsigned_int
 
     @sibling.setter
     def sibling(self, obj_num: int):
-        write_word(self._memory, self._addr + 8, obj_num)
+        ZWord.from_unsigned_int(obj_num).write(self._memory, self._addr + 8)
 
     @property
     def child(self) -> int:
-        return read_word(self._memory, self._addr + 10)
+        return ZWord.read(self._memory, self._addr + 10).unsigned_int
 
     @child.setter
     def child(self, obj_num: int):
-        write_word(self._memory, self._addr + 10, obj_num)
+        ZWord.from_unsigned_int(obj_num).write(self._memory, self._addr + 10)
 
     @property
     def properties(self) -> PropertiesTable:

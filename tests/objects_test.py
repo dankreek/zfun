@@ -1,6 +1,6 @@
 import pytest
 
-from zfun import get_header, ZMachineObjectTable, ZMachineIllegalOperation
+from zfun import get_header, ZMachineObjectTable, ZMachineIllegalOperation, ZByte, ZWord
 
 
 @pytest.fixture
@@ -107,13 +107,13 @@ def test_own_properties_v3(zork_v3_obj_table: ZMachineObjectTable):
     # Get own properties
     own_properties = door.properties.own_properties
     assert 18 in own_properties
-    assert own_properties[18].hex() == '3f9d'
+    assert own_properties[18] == ZWord(b'\x3f\x9d')
 
     assert 17 in own_properties
-    assert own_properties[17].hex() == '6d57'
+    assert own_properties[17] == ZWord(b'\x6d\x57')
 
     assert 16 in own_properties
-    assert own_properties[16].hex() == 'c9ca'
+    assert own_properties[16] == ZWord(b'\xc9\xca')
 
     assert own_properties[18] == door.properties.own_property_val(18)
     assert own_properties[17] == door.properties.own_property_val(17)
@@ -142,10 +142,10 @@ def test_own_properties_v5(zork_v5_obj_table: ZMachineObjectTable):
     # Get own properties
     own_properties = door.properties.own_properties
     assert 46 in own_properties
-    assert own_properties[46].hex() == '4dff'
+    assert own_properties[46] == ZWord(b'\x4d\xff')
 
     assert 45 in own_properties
-    assert own_properties[45].hex() == '3e24'
+    assert own_properties[45] == ZWord(b'\x3e\x24')
 
     assert 44 in own_properties
     assert own_properties[44].hex() == '50364a60'
@@ -292,42 +292,29 @@ def test_set_own_property_v3(zork_v3_obj_table: ZMachineObjectTable):
     pair_of_hands = zork_v3_obj_table.object(1)
 
     # Set with a single byte
-    pair_of_hands.properties.set_own_property(16, b'\x42')
-    assert b'\x42' == pair_of_hands.properties.own_property_val(16), \
+    pair_of_hands.properties.set_own_property(16, ZByte(b'\x42'))
+    assert ZByte(b'\x42') == pair_of_hands.properties.own_property_val(16), \
         'a single byte property is set with a single byte value'
 
     # Set with two bytes
-    pair_of_hands.properties.set_own_property(16, b'\x42\x69')
-    assert b'\x69' == pair_of_hands.properties.own_property_val(16), \
+    pair_of_hands.properties.set_own_property(16, ZWord.from_int(-6))
+    assert ZByte.from_int(-6) == pair_of_hands.properties.own_property_val(16), \
         'a single byte property is set with a two byte value'
-
-    with pytest.raises(ZMachineIllegalOperation, match='size 1 with a value of size 3'):
-        pair_of_hands.properties.set_own_property(16, b'\x00\x00\x00')
 
     # Property #18 is a two-byte property
     zorkmid = zork_v3_obj_table.object(2)
 
-    zorkmid.properties.set_own_property(18, b'\x12\x34')
-    assert b'\x12\x34' == zorkmid.properties.own_property_val(18)
-
-    with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 3'):
-        zorkmid.properties.set_own_property(18, b'\x12\x34\x56')
-
-    you = zork_v3_obj_table.object(5)
-    with pytest.raises(ZMachineIllegalOperation, match='size 8 with a value of size '):
-        you.properties.set_own_property(18, b'\x12\x34')
+    zorkmid.properties.set_own_property(18, ZWord(b'\x12\x34'))
+    assert ZWord(b'\x12\x34') == zorkmid.properties.own_property_val(18)
 
 
 def test_set_own_property_v5(zork_v5_obj_table: ZMachineObjectTable):
     # Property #46 is a two-byte property
     zorkmid = zork_v5_obj_table.object(122)
 
-    zorkmid.properties.set_own_property(46, b'\x12\x34')
-    assert b'\x12\x34' == zorkmid.properties.own_property_val(46)
-
-    with pytest.raises(ZMachineIllegalOperation, match='size 2 with a value of size 3'):
-        zorkmid.properties.set_own_property(46, b'\x12\x34\x56')
+    zorkmid.properties.set_own_property(46, ZWord(b'\x12\x34'))
+    assert ZWord(b'\x12\x34') == zorkmid.properties.own_property_val(46)
 
     you = zork_v5_obj_table.object(21)
     with pytest.raises(ZMachineIllegalOperation, match='size 8 with a value of size '):
-        you.properties.set_own_property(46, b'\x12\x34')
+        you.properties.set_own_property(46, ZWord(b'\x12\x34'))
