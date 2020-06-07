@@ -545,44 +545,36 @@ class ZMachineInterpreter(ABC):
     # VAR OP instructions
 
     def _opcode__storew(self):
-        arr_addr = self._operand_val(0)
-        word_i = self._operand_val(1)
+        arr_addr = self._operand_val(0).unsigned_int
+        word_offset = self._operand_val(1).unsigned_int * 2
         value = self._operand_val(2)
-        write_word(self._memory, arr_addr + (word_i * 2), value)
+        value.write(self._memory, arr_addr + word_offset)
 
     def _opcode__storeb(self):
-        arr_addr = self._operand_val(0)
-        byte_i = self._operand_val(1)
-        value = self._operand_bytes(2)
-
-        # If the value is from a variable it will be 2 bytes, only store the LSB
-        if len(value) == 2:
-            value = value[1]
-        else:
-            # The value is a single byte so convert it to an int for memoryview
-            value = int.from_bytes(value, 'big')
-
-        self._memory[arr_addr + byte_i] = value
+        arr_addr = self._operand_val(0).unsigned_int
+        byte_offset = self._operand_val(1).unsigned_int
+        value = self._operand_val(2)
+        value.write(self._memory, arr_addr + byte_offset)
 
     def _opcode__put_prop(self):
-        obj_num = self._operand_val(0)
-        prop_num = self._operand_val(1)
-        value = self._operand_bytes(2)
+        obj_num = self._operand_val(0).unsigned_int
+        prop_num = self._operand_val(1).unsigned_int
+        value = self._operand_val(2)
 
         obj = self._obj_table.object(obj_num)
         obj.properties.set_own_property(prop_num, value)
 
     def _opcode__print_char(self):
         char = self._operand_val(0)
-        self._screen.print(chr(char))
+        self._screen.print(chr(char.unsigned_int))
 
     def _opcode__print_num(self):
-        num = self._signed_operand_val(0)
-        self._screen.print(str(num))
+        num = self._operand_val(0)
+        self._screen.print(str(num.int))
 
     def _opcode__random(self):
         res_var = self._read_res_var()
-        rnd_range = self._signed_operand_val(0)
+        rnd_range = self._operand_val(0).int
 
         if rnd_range == 0:
             # Reseed generator with a random seed
@@ -590,13 +582,13 @@ class ZMachineInterpreter(ABC):
         elif rnd_range < 0:
             # Seed generator with the operand value and return 0
             random.seed(rnd_range)
-            self._variables.set(res_var, word(0))
+            self._variables.set(res_var, ZWord.from_int(0))
         else:
-            rnd_num = random.randint(1, rnd_range)
+            rnd_num = ZWord.from_int(random.randint(1, rnd_range))
             self._variables.set(res_var, rnd_num)
 
     def _opcode__push(self):
-        val = self._operand_bytes(0)
+        val = self._operand_val(0)
         self._stack.push(val)
 
     def _sound_effect(self):
@@ -635,8 +627,8 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # leverage Python's concept of an integer. Without using signed numbers
         # the result of the operation may not fit in 16 bits
         res_var = self._read_res_var()
-        val = self._signed_operand_val(0)
-        self._variables.set(res_var, signed_word(~val))
+        val = self._operand_val(0)
+        self._variables.set(res_var, ~val)
 
     def _opcode__save(self):
         predicate_type, offset = self._read_branch()
@@ -661,21 +653,20 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
     def _opcode__call(self):
         # The first operand contains the packed address of the routine to call.
-        routine_address = self.expanded_packed_address(self._operand_val(0))
+        routine_address = self.expanded_packed_address(ZWord(self._operand_val(0)))
 
         # The first byte of the routine header contains the number of local variables the routine has
-        local_vars_count = self._memory[routine_address]
+        local_vars_count = self._memory[routine_address.unsigned_int]
 
         # Each local variable's initial value is stored in the words following the word count byte
         initial_local_var_values = [
-            # TODO: this syntax is a touch gross
-            word(read_word(self._memory, routine_address + 1 + (i * 2)))
+            ZWord.read(self._memory, routine_address + 1 + (i * 2))
             for i in range(local_vars_count)
         ]
 
         # The additional operands of the call opcode are set in the new local vars
         for local_var_num in range(len(self._operands) - 1):
-            initial_local_var_values[local_var_num] = self._operand_bytes(local_var_num+1)
+            initial_local_var_values[local_var_num] = self._operand_val(local_var_num+1)
 
         # The return value the variable number is stored in the byte after the operands
         res_var = self._read_res_var()
@@ -691,23 +682,21 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         parse_buffer_address = self._operand_val(1)
 
         # The max number of characters to read is in the first byte of the text buffer
-        max_chars = self._memory[text_buffer_address]
+        max_chars = ZByte.read(self._memory, text_buffer_address.unsigned_int)
         text = self._keyboard.read_string(max_chars)
 
         # Put text into text buffer as ascii
         for i in range(len(text)):
-            self._memory[text_buffer_address + 1 + i] = ord(text[i])
+            ZByte.from_unsigned_int(ord(text[i])).write(self._memory, text_buffer_address.unsigned_int + 1 + i)
 
         # null-terminate the string
-        self._memory[text_buffer_address + 1 + len(text)] = 0
+        ZByte(b'\x00').write(self._memory, text_buffer_address + 1 + len(text))
 
         # tokenize
-        tokenize(self._memory, self._dictionary, text_buffer_address, parse_buffer_address)
-
-        pass
+        tokenize(self._memory, self._dictionary, text_buffer_address.unsigned_int, parse_buffer_address.unsigned_int)
 
     def _opcode__pull(self):
-        res_var = self._operand_val(0)
+        res_var = ZByte(self._operand_val(0))
         val = self._stack.pop()
         self._variables.set(res_var, val)
 
@@ -726,7 +715,6 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
     def _input_stream(self):
         # TODO #10: Figure out how this works
         raise NotImplemented('Still not sure how this works in V3')
-
 
 
 class ZMachineExitException(ZMachineException):
@@ -749,7 +737,7 @@ class ZMachineRuntimeException(ZMachineException):
 
     The exception that was thrown is wrapped in this exception
     """
-    def _init_(self, interpreter: ZMachineInterpreter, instruction_pc: int):
+    def _init_(self, interpreter: ZMachineInterpreter, instruction_pc: ZWord):
         """
         :param interpreter: Interpreter which raised the exception
         :param instruction_pc: PC of the currently executing instruction
@@ -763,5 +751,5 @@ class ZMachineRuntimeException(ZMachineException):
         return self._interpreter
 
     @property
-    def instruction_pc(self) -> int:
+    def instruction_pc(self) -> ZWord:
         return self._instruction_pc
