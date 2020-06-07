@@ -63,6 +63,10 @@ class ZData(ABC):
     def __invert__(self):
         pass
 
+    @abstractmethod
+    def __mod__(self, other):
+        pass
+
     def __truediv__(self, other):
         raise ZMachineIllegalOperation('Can not true-divide ZData')
 
@@ -227,6 +231,19 @@ class ZByte(ZData):
         elif type(other) == ZByte:
             return ZByte(self._trunc_int(2, 1, value))
 
+    def __mod__(self, other):
+        if not issubclass(type(other), ZData):
+            raise TypeError('can only modulo ZData types')
+        elif other.int == 0:
+            raise ZMachineIllegalOperation('Modulo by zero')
+
+        value = self.int % other.int
+
+        if type(other) == ZByte:
+            return ZByte.from_int(value)
+        else:
+            return ZWord.from_int(value)
+
     def __lshift__(self, other):
         if (type(other) != int) or (other < 0):
             raise TypeError('Can only shift by a positive integer')
@@ -291,7 +308,7 @@ class ZByte(ZData):
         memory[address:address+1] = self._value
 
     @staticmethod
-    def read(memory: Union[bytes, memoryview], address: int) -> ZData:
+    def read(memory: Union[bytes, memoryview], address: int):
         return ZByte(memory[address:address+1])
 
     def is_bit_set(self, bit_number: int) -> bool:
@@ -357,6 +374,15 @@ class ZWord(ZData):
 
         value = self.int // other.int
         return ZWord(self._trunc_int(value))
+
+    def __mod__(self, other):
+        if not issubclass(type(other), ZData):
+            raise TypeError('can only modulo ZData types')
+        elif other.int == 0:
+            raise ZMachineIllegalOperation('Modulo by zero')
+
+        value = self.int % other.int
+        return ZWord.from_int(value)
 
     def __lshift__(self, other):
         if (type(other) != int) or (other < 0):

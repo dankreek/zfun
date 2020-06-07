@@ -75,6 +75,12 @@ def test_zbyte_to_zbyte_math():
     zb = ZByte(b'\x00').dec()
     assert zb.bytes == b'\xff', 'Rollover on decrement'
 
+    zb = ZByte.from_int(127) % ZByte.from_int(2)
+    assert zb.int == 1
+
+    zb = ZByte.from_int(-128) % ZByte.from_int(2)
+    assert zb.int == 0
+
 
 def test_zbyte_bitwise_operations():
     zb = ZByte.from_unsigned_int(0b1010_1010) << 1
@@ -140,6 +146,11 @@ def test_zbyte_to_zword_math():
     with pytest.raises(ZMachineIllegalOperation):
         ZByte.from_int(4) / ZWord.from_int(8)
 
+    zw = ZByte.from_int(127) % ZWord.from_int(2)
+    assert zw.int == 1
+
+    zw = ZByte.from_int(-128) % ZWord.from_int(2)
+    assert zw.int == 0
 
 def test_instantiate_zword():
     zw = ZWord(bytes.fromhex('1234'))
@@ -221,6 +232,12 @@ def test_zword_zword_math():
 
     zw = ZWord(b'\x00\x00').dec()
     assert zw.bytes == b'\xff\xff', 'Rollover on decrement'
+
+    zw = ZWord.from_int(32767) % ZWord.from_int(2)
+    assert zw.int == 1
+
+    zw = ZWord.from_int(-32768) % ZWord.from_int(2)
+    assert zw.int == 0
 
 
 def test_zword_bitwise_operations():

@@ -172,6 +172,7 @@ class ZMachineOpcodeParser(ABC):
         else:
             return OpcodeForm.LONG
 
+    # XXX: accept and return next address with ZWord
     def parse(self, address: int) -> Tuple[ZMachineOpcode, int]:
         """ Get the opcode and arguments at the given address.
 
