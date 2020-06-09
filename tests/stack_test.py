@@ -1,5 +1,5 @@
 import pytest
-from zfun import ZMachineStack, ZWord, ZByte
+from zfun import ZMachineStack, ZWord, ZByte, PC
 
 
 @pytest.fixture
@@ -16,22 +16,22 @@ def test_push_peek_and_pop(stack: ZMachineStack):
     stack.push(b)
     stack.push(c)
 
-    assert stack.peek(0) == a
-    assert stack.peek(1) == b
-    assert stack.peek(2) == c
     assert stack.peek() == c
-
     assert stack.pop() == c
+
+    assert stack.peek() == b
     assert stack.pop() == b
+
+    assert stack.peek() == a
     assert stack.pop() == a
 
 
 def test_routine_calls(stack: ZMachineStack):
-    ret_a = ZWord.from_unsigned_int(1234)
+    ret_a = PC(1234)
     ret_var_a = ZByte.from_int(2)
     a_locals = [ZWord.from_int(1), ZWord.from_int(2), ZWord.from_int(3), ZByte.from_int(4)]
 
-    ret_b = ZWord.from_unsigned_int(5678)
+    ret_b = PC(5678)
     ret_var_b = ZByte.from_unsigned_int(45)
     b_locals = [ZWord.from_int(42), ZWord.from_int(56)]
 
