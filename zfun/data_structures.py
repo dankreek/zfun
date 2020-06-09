@@ -179,6 +179,18 @@ class ZByte(ZData):
 
         super().__init__(value)
 
+    def pad(self, is_signed: bool = True):
+        """ Pad an 8-bit value to make it 16-bits.
+
+        :param is_signed: Pad the high byte with the sign bit if True, otherwise pad with 0x00
+        :return: A new 16-bit value
+        :rtype: ZWord
+        """
+        if is_signed and (self.int < 0):
+            return ZWord(b'\xff' + self._value)
+        else:
+            return ZWord(b'\x00' + self._value)
+
     def __eq__(self, other):
         if type(other) != ZByte:
             raise TypeError(f'can not compare a ZByte to {type(other)}')
@@ -459,4 +471,42 @@ class ZWord(ZData):
         return (self.int & mask) != 0
 
 
+class PC:
 
+    def __init__(self, value: Union[int, ZWord]):
+        if type(value) == ZWord:
+            value = value.unsigned_int
+        elif type(value) == int:
+            if value < 0:
+                raise ValueError('Can not set the PC below 0')
+        else:
+            raise TypeError('Can only set the PC with a positive int or ZWord')
+
+        self._value = value
+
+    def __add__(self, other):
+        if issubclass(type(other), ZData):
+            other = other.unsigned_int
+
+        return PC(self._value + other)
+
+    def __sub__(self, other):
+        if issubclass(type(other), ZData):
+            other = other.unsigned_int
+
+        return PC(self._value - other)
+
+    def __mul__(self, other):
+        if issubclass(type(other), ZData):
+            other = other.unsigned_int
+
+        return PC(self._value * other)
+
+    def __str__(self):
+        return f'0x{self._value:02x}'
+
+    def __repr__(self):
+        return f'<PC {self.__str__()}>'
+
+    def __int__(self):
+        return self._value

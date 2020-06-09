@@ -17,12 +17,12 @@ def zork_v5_obj_table(zork1_v5_data: memoryview) -> ZMachineObjectTable:
 
 def test_attributes_v3(zork_v3_obj_table: ZMachineObjectTable):
     cretin = zork_v3_obj_table.object(4)
-    assert cretin.attributes == {0, 9, 14, 25}
+    assert cretin.attributes == {7, 9, 14, 30}
 
-    cretin.update_attribute(0, False)
+    cretin.update_attribute(7, False)
     cretin.update_attribute(9, False)
     cretin.update_attribute(14, False)
-    cretin.update_attribute(25, False)
+    cretin.update_attribute(30, False)
     assert cretin.attributes == set()
 
     # Flip each attribute individually
@@ -44,12 +44,12 @@ def test_attributes_v3(zork_v3_obj_table: ZMachineObjectTable):
 
 def test_attributes_v5(zork_v5_obj_table: ZMachineObjectTable):
     cretin = zork_v5_obj_table.object(46)
-    assert cretin.attributes == {16, 24, 30, 41}
+    assert cretin.attributes == {23, 25, 31, 46}
 
-    cretin.update_attribute(16, False)
-    cretin.update_attribute(24, False)
-    cretin.update_attribute(30, False)
-    cretin.update_attribute(41, False)
+    cretin.update_attribute(23, False)
+    cretin.update_attribute(25, False)
+    cretin.update_attribute(31, False)
+    cretin.update_attribute(46, False)
     assert cretin.attributes == set()
 
     # Flip each attribute individually

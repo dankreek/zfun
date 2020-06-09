@@ -36,3 +36,8 @@ def zork_v3_dict(zork1_v3_data: memoryview) -> ZMachineDictionary:
     yield ZMachineDictionary(zork1_v3_data, header)
 
 
+# XXX: Don't commit
+@pytest.fixture
+def cutthroats_v3_data() -> memoryview:
+    yield _file_memorybuffer('../scratch/cutthroats.z3')
+

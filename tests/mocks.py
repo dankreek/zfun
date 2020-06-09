@@ -6,6 +6,7 @@ class MockScreen(ZMachineScreen):
 
     def __init__(self):
         self._printed_data: List[str] = []
+        self._is_status_displayed = False
 
     def initialize(self, memory: memoryview, stack: ZMachineStack):
         pass
@@ -30,7 +31,11 @@ class MockScreen(ZMachineScreen):
 
     @property
     def is_status_displayed(self) -> bool:
-        return False
+        return self._is_status_displayed
+
+    @is_status_displayed.setter
+    def is_status_displayed(self, displayed: bool):
+        self._is_status_displayed = displayed
 
     @property
     def printed_text(self) -> List[str]:

@@ -62,11 +62,14 @@ class ZMachineVariables:
         assert issubclass(type(val), ZData), 'A ZByte or ZWord value is expected'
         var_num_int = var_num.unsigned_int
 
+        if type(val) == ZByte:
+            val = val.pad(is_signed=False)
+
         if var_num_int == 0:
             # Replace the value at the top of the stack
             self._stack.push(val)
         elif var_num_int < 0x10:
             self._stack.set_local_var(var_num_int - 1, val)
         else:
-            self.set_global(var_num_int - 0x10, ZWord(val))
+            self.set_global(var_num_int - 0x10, val)
 

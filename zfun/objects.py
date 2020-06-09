@@ -139,6 +139,9 @@ class PropertiesTable(ABC):
         if (prop_info.size == 1) and (len(value) == 2):
             byte_val = ZByte.from_int(value.int)
             byte_val.write(self._memory, value_address)
+        elif (prop_info.size == 2) and (type(value) == ZByte):
+            word_val = value.pad()
+            word_val.write(self._memory, value_address)
         elif prop_info.size == len(value):
             value.write(self._memory, value_address)
         else:
@@ -281,8 +284,8 @@ class ZMachineObject(ABC):
 
     @staticmethod
     def _attr_byte_and_bit(attr_num: int) -> Tuple[int, int]:
-        byte_num = int(attr_num/8)
-        bit_num = attr_num % 8
+        byte_num = attr_num // 8
+        bit_num = 7 - attr_num % 8
         return byte_num, bit_num
 
     @abstractmethod

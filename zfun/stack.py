@@ -1,12 +1,11 @@
 import copy
 from typing import Union, List, Tuple, NamedTuple
 from .exc import ZMachineException, ZMachineIllegalOperation
-from .util import read_word, read_signed_word
-from .data_structures import ZWord, ZByte, ZData
+from .data_structures import ZWord, ZByte, ZData, PC
 
 
 class ZMachineStackFrame(NamedTuple):
-    return_pc: Union[None, ZWord]
+    return_pc: Union[None, PC]
     result_var: Union[None, ZByte]
     prev_frame_i: Union[None, int]
     local_vars: Union[None, List[ZData]]
@@ -28,6 +27,7 @@ class ZMachineStack:
         self._routine_num_vars: List[int] = []
 
     def push(self, x: ZData):
+        assert issubclass(type(x), ZData), 'can only push ZData types on to the stack'
         self._stack.append(x)
 
     def pop(self) -> ZData:
@@ -85,7 +85,7 @@ class ZMachineStack:
         self._verify_var_num_range(var_num)
         self._stack[self._frame_i + 3 + var_num] = val
 
-    def push_routine_call(self, ret_addr: ZWord, num_locals: int, res_var: ZByte, *local_var_vals: ZData):
+    def push_routine_call(self, ret_addr: PC, num_locals: int, res_var: ZByte, *local_var_vals: ZData):
         """ Push a routine call onto the stack.
 
         This is used to mark the position in the stack where the routine's local variables are stored.
@@ -96,7 +96,7 @@ class ZMachineStack:
         :param local_var_vals: Initial values of all local variables. If no values are available, they will be set to 0.0
         """
         new_frame_i = len(self._stack)
-        self.push(ret_addr)
+        self._stack.append(ret_addr)
         self.push(res_var)
         self.push(ZWord.from_unsigned_int(self._frame_i))
         self._frame_i = new_frame_i
@@ -110,7 +110,7 @@ class ZMachineStack:
 
         self._routine_num_vars.append(num_locals)
 
-    def pop_routine_call(self) -> Tuple[ZWord, ZByte]:
+    def pop_routine_call(self) -> Tuple[PC, ZByte]:
         """ Remove the current routine's stack frame.
 
         :return: The address to return to after cleaning up the current routine,
@@ -130,7 +130,7 @@ class ZMachineStack:
         # Remove previous routine's debug info
         self._routine_num_vars.pop()
 
-        return ZWord(ret_addr), ZByte(res_var)
+        return ret_addr, ZByte(res_var)
 
     def stack_frames(self) -> List[ZMachineStackFrame]:
         local_var_counts = copy.copy(self._routine_num_vars)
@@ -138,14 +138,14 @@ class ZMachineStack:
         frame_i = self._frame_i
         last_frame_i = len(self._stack)
 
-        while last_frame_i != 0:
+        while frame_i != 0:
             var_count = local_var_counts.pop()
             frames.insert(0, ZMachineStackFrame(
-                ZWord(self._stack[frame_i + self.RET_PC_OFFSET]),
+                self._stack[frame_i + self.RET_PC_OFFSET],
                 ZByte(self._stack[frame_i + self.RES_VAR_OFFSET]),
                 self._stack[frame_i + self.PREV_FRAME_I_OFFSET].unsigned_int,
                 self._stack[frame_i+3:frame_i + 3 + var_count],
-                self._stack[frame_i + 3 + var_count + 1:last_frame_i]
+                self._stack[frame_i+3+var_count:last_frame_i]
             ))
             last_frame_i = frame_i
             frame_i = self._stack[frame_i + self.PREV_FRAME_I_OFFSET].unsigned_int

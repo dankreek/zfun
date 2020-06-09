@@ -2,7 +2,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Union, Tuple
 
-from .data_structures import ZWord, ZByte, ZData
+from .data_structures import ZWord, ZByte, ZData, PC
 from .dictionary import ZMachineDictionary
 from .exc import ZMachineIllegalOperation, ZMachineException
 from .header import ZCodeHeader
@@ -12,7 +12,7 @@ from .objects import ZMachineObjectTable
 from .screen import ZMachineScreen
 from .stack import ZMachineStack
 from .tokenize import tokenize
-from .util import read_word, read_signed_word, signed_word, word, write_word, is_bit_set
+from .util import is_bit_set
 from .variables import ZMachineVariables
 from .z_string import z_string_to_str, z_string_to_str_with_next
 
@@ -26,8 +26,8 @@ class ZMachineInterpreter(ABC):
 
         self._stack = ZMachineStack()
 
-        # XXX: Make this a ZWord in header
-        self._pc: ZWord = ZWord.from_unsigned_int(header.initial_pc_value)
+        # XXX: Make this a ZWord in header?
+        self._pc: PC = PC(header.initial_pc_value)
 
         # XXX: Read the version from the header to instantiate this
         self._opcode_parser = ZMachineOpcodeParserV3(memory)
@@ -53,7 +53,7 @@ class ZMachineInterpreter(ABC):
         self._screen.terminate()
 
     @property
-    def pc(self) -> ZWord:
+    def pc(self) -> PC:
         """ Current value of the PC """
         return self._pc
 
@@ -82,13 +82,13 @@ class ZMachineInterpreter(ABC):
         :raises ZMachineRuntimeException: When an unexpected error occurs
         """
         if address is not None:
-            self._pc = ZWord.from_unsigned_int(address)
+            self._pc = PC(address)
 
         start_pc = self._pc
 
         try:
-            opcode_and_operands, next_pc = self._opcode_parser.parse(self._pc)
-            self._pc = ZWord.from_unsigned_int(next_pc)
+            opcode_and_operands, next_pc = self._opcode_parser.parse(int(self._pc))
+            self._pc = PC(next_pc)
 
             opcode_method_name = '_opcode__' + opcode_and_operands.opcode
 
@@ -118,7 +118,7 @@ class ZMachineInterpreter(ABC):
         while True:
             self.step()
 
-            if self._pc == ZWord.from_unsigned_int(breakpoint_pc):
+            if (breakpoint_pc is not None) and (int(self._pc) == breakpoint_pc):
                 return
 
     @abstractmethod
@@ -140,7 +140,7 @@ class ZMachineInterpreter(ABC):
 
     @staticmethod
     @abstractmethod
-    def expanded_packed_address(packed_address: ZWord) -> ZWord:
+    def expanded_packed_address(packed_address: ZWord) -> int:
         """ Expand a packed address for the implementing version of the interpreter.
 
         :param packed_address: Address in packed form.
@@ -150,8 +150,8 @@ class ZMachineInterpreter(ABC):
 
     def _read_res_var(self) -> ZByte:
         """ Read a single byte at the PC, advance the PC and return the result variable number. """
-        res_var = ZByte.read(self._memory, self._pc)
-        self._pc = self._pc.inc()
+        res_var = ZByte.read(self._memory, int(self._pc))
+        self._pc += 1
         return res_var
 
     # XXX: Use ZData types internally
@@ -162,32 +162,32 @@ class ZMachineInterpreter(ABC):
 
         :return: True if branch should happen on a true condition, and the offset of the branch if predicate is satisfied.
         """
-        first_branch_byte = self._memory[self._pc.unsigned_int]
+        first_branch_byte = self._memory[int(self._pc)]
 
         # If bit 7 is set, the predicate is a True type
-        if is_bit_set(self._memory, self._pc.unsigned_int, 7):
+        if is_bit_set(self._memory, int(self._pc), 7):
             predicate = True
         else:
             predicate = False
 
         # If bit 6 is set, then the offset is an unsigned 6-bit number
-        if is_bit_set(self._memory, self._pc.unsigned_int, 6):
+        if is_bit_set(self._memory, int(self._pc), 6):
             # Mask off the predicate and number type bits
             offset = ZByte.from_unsigned_int(first_branch_byte & 0b0011_1111)
-            self._pc = self._pc.inc()
+            self._pc += 1
         else:
             # If bit 6 is set then the offset is a 14-bit signed int, using the rest of the bits in
             # this byte and all of the the next byte. Since we can only address 8 or 16 bit numbers the
             # predicate and number type bits need to be padded with the same value as the sign bit.
-            if is_bit_set(self._memory, self._pc.unsigned_int, 5):
+            if is_bit_set(self._memory, int(self._pc), 5):
                 # Pad with 1's since this is a negative number
                 first_branch_byte |= 0b1110_0000
             else:
                 # Pad with 0's since this is a positive number
                 first_branch_byte &= 0b0001_1111
 
-            next_branch_byte = self._memory[self._pc.unsigned_int + 1]
-            self._pc = self._pc.inc(2)
+            next_branch_byte = self._memory[int(self._pc) + 1]
+            self._pc += 2
 
             offset = ZWord(bytes([first_branch_byte, next_branch_byte]))
 
@@ -198,8 +198,8 @@ class ZMachineInterpreter(ABC):
 
         :return: String read after current instruction
         """
-        string, next_pc = z_string_to_str_with_next(self._memory, self._pc, self._header.abbreviations_table_address)
-        self._pc = ZWord.from_unsigned_int(next_pc)
+        string, next_pc = z_string_to_str_with_next(self._memory, int(self._pc), self._header.abbreviations_table_address)
+        self._pc = PC(next_pc)
         return string
 
     def _operand_val(self, operand_num: int) -> ZData:
@@ -224,7 +224,7 @@ class ZMachineInterpreter(ABC):
                 self._variables.set(res_var, offset)
                 self._pc = ret_pc
             else:
-                self._pc = self._pc + offset.dec(2)
+                self._pc = self._pc + offset.dec(2).int
 
     # -------- Instructions are all defined below and executed via reflection --------
     # Opcode method name convention is '_opcode__' + name of opcode
@@ -276,7 +276,7 @@ class ZMachineInterpreter(ABC):
 
     def _opcode__jz(self):
         predicate_type, offset = self._read_branch()
-        self._handle_branch(self._operand_val(0) == 0, predicate_type, offset)
+        self._handle_branch(self._operand_val(0).int == 0, predicate_type, offset)
 
     def _opcode__get_sibling(self):
         res_var = self._read_res_var()
@@ -343,12 +343,12 @@ class ZMachineInterpreter(ABC):
     def _opcode__jump(self):
         offset = self._operand_val(0)
         # The two bytes of operands need to be accounted for
-        self._pc += offset.dec(2)
+        self._pc += offset.dec(2).int
 
     def _opcode__print_paddr(self):
-        packed_addr = self._operand_val(0)
+        packed_addr = ZWord(self._operand_val(0))
         zstr_addr = self.expanded_packed_address(packed_addr)
-        string = z_string_to_str(self._memory, zstr_addr.unsigned_int, self._header.abbreviations_table_address)
+        string = z_string_to_str(self._memory, zstr_addr, self._header.abbreviations_table_address)
         self._screen.print(string)
 
     def _opcode__load(self):
@@ -360,9 +360,14 @@ class ZMachineInterpreter(ABC):
 
     def _opcode__je(self):
         predicate_type, offset = self._read_branch()
-        op_0 = self._operand_val(0)
-        op_1 = self._operand_val(1)
-        self._handle_branch(op_0 == op_1, predicate_type, offset)
+        operand_vals = [self._operand_val(i) for i in range(len(self._operands))]
+
+        for i in range(len(operand_vals) - 1):
+            if operand_vals[i].int != operand_vals[i+1].int:
+                self._handle_branch(False, predicate_type, offset)
+                return
+
+        self._handle_branch(True, predicate_type, offset)
 
     def _opcode__jl(self):
         predicate_type, offset = self._read_branch()
@@ -382,7 +387,7 @@ class ZMachineInterpreter(ABC):
         cmp_val = self._operand_val(1)
 
         # Read variable value, decrement it and write it back
-        dec_val = self._operand_val(0).dec()
+        dec_val = self._variables.val(var_num).dec()
         self._variables.set(var_num, dec_val)
 
         self._handle_branch(dec_val.int < cmp_val.int, predicate_type, offset)
@@ -393,10 +398,10 @@ class ZMachineInterpreter(ABC):
         cmp_val = self._operand_val(1)
 
         # Read variable value, decrement it and write it back
-        dec_val = self._operand_val(0).inc()
+        dec_val = self._variables.val(var_num).inc()
         self._variables.set(var_num, dec_val)
 
-        self._handle_branch(dec_val.int < cmp_val.int, predicate_type, offset)
+        self._handle_branch(dec_val.int > cmp_val.int, predicate_type, offset)
 
     def _opcode__jin(self):
         predicate_type, offset = self._read_branch()
@@ -409,18 +414,23 @@ class ZMachineInterpreter(ABC):
         predicate_type, offset = self._read_branch()
         bitmap = self._operand_val(0)
         flags = self._operand_val(1)
-        self._handle_branch((bitmap & flags) == flags, predicate_type, offset)
+
+        if type(flags) == ZByte:
+            flags = flags.pad(False)
+
+        self._handle_branch((bitmap & flags.unsigned_int) == flags, predicate_type, offset)
 
     def _opcode__or(self):
         res_var = self._read_res_var()
         a = self._operand_val(0)
-        b = self._operand_val(1)
+        b = self._operand_val(1).unsigned_int
         self._variables.set(res_var, a | b)
 
     def _opcode__and(self):
         res_var = self._read_res_var()
         a = self._operand_val(0)
-        b = self._operand_val(1)
+        b = self._operand_val(1).unsigned_int
+
         self._variables.set(res_var, a & b)
 
     def _opcode__test_attr(self):
@@ -456,7 +466,7 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
         arr_addr = self._operand_val(0).unsigned_int
         word_idx = self._operand_val(1).unsigned_int
-        word_addr = arr_addr + (word_idx * 2)
+        word_addr = arr_addr + word_idx * 2
         ret_word = ZWord.read(self._memory, word_addr)
         self._variables.set(res_var, ret_word)
 
@@ -516,30 +526,65 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
+
+        if type(a) == ZByte:
+            a = a.pad(is_signed=False)
+
+        if type(b) == ZByte:
+            b = b.pad(is_signed=False)
+
         self._variables.set(res_var, a + b)
 
     def _opcode__sub(self):
         res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
+
+        if type(a) == ZByte:
+            a = a.pad(is_signed=False)
+
+        if type(b) == ZByte:
+            b = b.pad(is_signed=False)
+
         self._variables.set(res_var, a - b)
 
     def _opcode__mul(self):
         res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
+
+        if type(a) == ZByte:
+            a = a.pad(is_signed=False)
+
+        if type(b) == ZByte:
+            b = b.pad(is_signed=False)
+
         self._variables.set(res_var, a * b)
 
     def _opcode__div(self):
         res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
+
+        if type(a) == ZByte:
+            a = a.pad(is_signed=False)
+
+        if type(b) == ZByte:
+            b = b.pad(is_signed=False)
+
         self._variables.set(res_var, a // b)
 
     def _opcode__mod(self):
         res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
+
+        if type(a) == ZByte:
+            a = a.pad(is_signed=False)
+
+        if type(b) == ZByte:
+            b = b.pad(is_signed=False)
+
         self._variables.set(res_var, a % b)
 
     # VAR OP instructions
@@ -617,8 +662,8 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         self._header.is_transcription_on = False
 
     @staticmethod
-    def expanded_packed_address(packed_address: ZWord) -> ZWord:
-        return packed_address << 2
+    def expanded_packed_address(packed_address: ZWord) -> int:
+        return packed_address.unsigned_int << 1
 
     # Version 3 specific opcodes
 
@@ -656,7 +701,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         routine_address = self.expanded_packed_address(ZWord(self._operand_val(0)))
 
         # The first byte of the routine header contains the number of local variables the routine has
-        local_vars_count = self._memory[routine_address.unsigned_int]
+        local_vars_count = self._memory[routine_address]
 
         # Each local variable's initial value is stored in the words following the word count byte
         initial_local_var_values = [
@@ -675,7 +720,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
 
         # The address of the first instruction is directly after all the parameters
-        self._pc = routine_address + 1 + (local_vars_count * 2)
+        self._pc = PC(routine_address + 1 + (local_vars_count * 2))
 
     def _opcode__sread(self):
         text_buffer_address = self._operand_val(0)
@@ -690,7 +735,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             ZByte.from_unsigned_int(ord(text[i])).write(self._memory, text_buffer_address.unsigned_int + 1 + i)
 
         # null-terminate the string
-        ZByte(b'\x00').write(self._memory, text_buffer_address + 1 + len(text))
+        ZByte(b'\x00').write(self._memory, text_buffer_address.unsigned_int + 1 + len(text))
 
         # tokenize
         tokenize(self._memory, self._dictionary, text_buffer_address.unsigned_int, parse_buffer_address.unsigned_int)
@@ -737,7 +782,7 @@ class ZMachineRuntimeException(ZMachineException):
 
     The exception that was thrown is wrapped in this exception
     """
-    def _init_(self, interpreter: ZMachineInterpreter, instruction_pc: ZWord):
+    def _init_(self, interpreter: ZMachineInterpreter, instruction_pc: PC):
         """
         :param interpreter: Interpreter which raised the exception
         :param instruction_pc: PC of the currently executing instruction
@@ -751,5 +796,5 @@ class ZMachineRuntimeException(ZMachineException):
         return self._interpreter
 
     @property
-    def instruction_pc(self) -> ZWord:
+    def instruction_pc(self) -> PC:
         return self._instruction_pc
