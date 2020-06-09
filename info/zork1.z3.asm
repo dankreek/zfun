@@ -291,19 +291,23 @@ Routine 5472, 3 locals (0000, 0000, 0000)
  5484:  ab 03                   RET             L02
 
 Routine 5486, 5 locals (0000, 0000, 0000, 0000, 0000)
-
- 5491:  54 94 b4 03             ADD             G84,#b4 -> L02
- 5495:  74 94 92 04             ADD             G84,G82 -> L03
+;; Start
+ 5491:  54 94 b4 03             ADD             G84,#b4 -> L02  ;; L02 = $23e9 + $ffb4 = $239d
+ 5495:  74 94 92 04             ADD             G84,G82 -> L03  ;; L03 = $23e9 + $b4 = $249d
+;;
  5499:  61 04 03 58             JE              L03,L02 [FALSE] 54b3
  549d:  55 92 06 92             SUB             G82,#06 -> G82
  54a1:  a0 02 c6                JZ              L01 [TRUE] 54a8
  54a4:  55 93 06 93             SUB             G83,#06 -> G83
+;;
  54a8:  74 94 92 05             ADD             G84,G82 -> L04
  54ac:  e1 9b 05 02 01          STOREW          L04,#02,L00
  54b1:  ab 05                   RET             L04
+;;
  54b3:  4f 04 02 00             LOADW           L03,#02 -> -(SP)
  54b7:  61 00 01 44             JE              (SP)+,L00 [FALSE] 54bd
  54bb:  ab 04                   RET             L03
+;;
  54bd:  54 04 06 04             ADD             L03,#06 -> L03
  54c1:  8c ff d7                JUMP            5499
 
@@ -4180,10 +4184,11 @@ Routine 8e58, 6 locals (0000, 0000, 0000, 0001, 0000, 0000)
  8ea9:  b0                      RTRUE           
 
 Routine 8eaa, 10 locals (0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000)
-
- 8ebf:  a2 01 04 41             GET_CHILD       L00 -> L03 [FALSE] RTRUE
+L00 = "West of House" #180
+L03 = "Cretin" #4
+ 8ebf:  a2 01 04 41             GET_CHILD       L00 -> L03 [FALSE] RTRUE  ; get 1st child of "West of House" (cretin)
  8ec3:  a3 7f 07                GET_PARENT      G6f -> L06
- 8ec6:  a0 07 c9                JZ              L06 [TRUE] 8ed0
+ 8ec6:  a0 07 c9                JZ              L06 [TRUE] 8ed0  ; If object in G6f has no parent goto $8ed0
  8ec9:  4a 07 1b 45             TEST_ATTR       L06,#1b [FALSE] 8ed0
  8ecd:  8c 00 05                JUMP            8ed3
  8ed0:  0d 07 00                STORE           L06,#00
@@ -4202,9 +4207,11 @@ Routine 8eaa, 10 locals (0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0000, 0
  8efc:  8c 00 41                JUMP            8f3e
  8eff:  4a 04 07 80 3c          TEST_ATTR       L03,#07 [TRUE] 8f3e
  8f04:  4a 04 03 f8             TEST_ATTR       L03,#03 [TRUE] 8f3e
+ ;; Get the prop value of the object and put it into L07
  8f08:  51 04 0e 08             GET_PROP        L03,#0e -> L07
  8f0c:  a0 08 f1                JZ              L07 [TRUE] 8f3e
  8f0f:  4a 04 0e c8             TEST_ATTR       L03,#0e [TRUE] 8f19
+ ;; L07 contains a value too small to be a proper packed address
  8f13:  ad 08                   PRINT_PADDR     L07
  8f15:  bb                      NEW_LINE        
  8f16:  0d 06 00                STORE           L05,#00

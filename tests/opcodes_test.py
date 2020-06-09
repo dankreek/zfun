@@ -1,5 +1,5 @@
 import pytest
-from zfun import ZMachineOpcodeParserV3, ZMachineOperandTypes
+from zfun import ZMachineOpcodeParserV3, ZMachineOperandTypes, ZWord, ZByte
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def test_short_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(jump.operand_types) == 1
     assert len(jump.operands) == 1
     assert jump.operand_types[0] == ZMachineOperandTypes.LARGE_CONSTANT
-    assert jump.operands[0] == bytes([0x00, 0x0b])
+    assert jump.operands[0] == ZWord(bytes([0x00, 0x0b]))
     assert next_pc == 0x85ab + 3
 
     # One operand of type VARIABLE
@@ -23,7 +23,7 @@ def test_short_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(load.operand_types) == 1
     assert len(load.operands) == 1
     assert load.operand_types[0] == ZMachineOperandTypes.VARIABLE
-    assert load.operands[0] == b'\x00'
+    assert load.operands[0] == ZByte(b'\x00')
     assert next_pc == 0x7d58 + 2
 
     # Zero operands
@@ -40,7 +40,7 @@ def test_long_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(add.operand_types) == 2
     assert len(add.operands) == 2
     assert add.operand_types == (ZMachineOperandTypes.VARIABLE, ZMachineOperandTypes.SMALL_CONSTANT)
-    assert add.operands == (b'\x01', b'\x02')
+    assert add.operands == (ZByte(b'\x01'), ZByte(b'\x02'))
     assert next_pc == 0x4e83 + 3
 
 
@@ -54,7 +54,7 @@ def test_variable_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
         ZMachineOperandTypes.SMALL_CONSTANT,
         ZMachineOperandTypes.SMALL_CONSTANT
     )
-    assert call.operands == (b'\x88', b'\x32', b'\x12')
+    assert call.operands == (ZByte(b'\x88'), ZByte(b'\x32'), ZByte(b'\x12'))
     assert next_pc == 0x5157 + 5
 
     # Test unique variable opcode instructions
@@ -69,12 +69,10 @@ def test_variable_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(call.operands) == 3
 
     assert call.operands == (
-        bytes([0x2a, 0x39]),
-        bytes([0x80, 0x10]),
-        bytes([0xff, 0xff])
+        ZWord(bytes([0x2a, 0x39])),
+        ZWord(bytes([0x80, 0x10])),
+        ZWord(bytes([0xff, 0xff]))
     )
     assert next_pc == 0x4f05 + 8
 
 
-def test_other_things_for_debugging(opcodes_v3: ZMachineOpcodeParserV3):
-    inc_instr, next_pc = opcodes_v3.parse(0x4ea9)
