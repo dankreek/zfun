@@ -697,30 +697,37 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         pass
 
     def _opcode__call(self):
-        # The first operand contains the packed address of the routine to call.
-        routine_address = self.expanded_packed_address(ZWord(self._operand_val(0)))
+        packed_address = ZWord(self._operand_val(0))
 
-        # The first byte of the routine header contains the number of local variables the routine has
-        local_vars_count = self._memory[routine_address]
+        if packed_address.unsigned_int == 0:
+            ret_pc, ret_var = self._stack.pop_routine_call()
+            self._variables.set(ret_var, ZWord.from_int(0))
+            self._pc = ret_pc
+        else:
+            # The first operand contains the packed address of the routine to call.
+            routine_address = self.expanded_packed_address(packed_address)
 
-        # Each local variable's initial value is stored in the words following the word count byte
-        initial_local_var_values = [
-            ZWord.read(self._memory, routine_address + 1 + (i * 2))
-            for i in range(local_vars_count)
-        ]
+            # The first byte of the routine header contains the number of local variables the routine has
+            local_vars_count = self._memory[routine_address]
 
-        # The additional operands of the call opcode are set in the new local vars
-        for local_var_num in range(len(self._operands) - 1):
-            initial_local_var_values[local_var_num] = self._operand_val(local_var_num+1)
+            # Each local variable's initial value is stored in the words following the word count byte
+            initial_local_var_values = [
+                ZWord.read(self._memory, routine_address + 1 + (i * 2))
+                for i in range(local_vars_count)
+            ]
 
-        # The return value the variable number is stored in the byte after the operands
-        res_var = self._read_res_var()
+            # The additional operands of the call opcode are set in the new local vars
+            for local_var_num in range(len(self._operands) - 1):
+                initial_local_var_values[local_var_num] = self._operand_val(local_var_num+1)
 
-        # Add new frame to the stack for this routine
-        self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
+            # The return value the variable number is stored in the byte after the operands
+            res_var = self._read_res_var()
 
-        # The address of the first instruction is directly after all the parameters
-        self._pc = PC(routine_address + 1 + (local_vars_count * 2))
+            # Add new frame to the stack for this routine
+            self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
+
+            # The address of the first instruction is directly after all the parameters
+            self._pc = PC(routine_address + 1 + (local_vars_count * 2))
 
     def _opcode__sread(self):
         text_buffer_address = self._operand_val(0)
