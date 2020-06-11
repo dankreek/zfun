@@ -23,13 +23,12 @@ class ZMachineInterpreter(ABC):
         self._memory = memory
         self._screen = screen
         self._keyboard = keyboard
+        self._step_count = 0
 
         self._stack = ZMachineStack()
-
-        # XXX: Make this a ZWord in header?
         self._pc: PC = PC(header.initial_pc_value)
 
-        # XXX: Read the version from the header to instantiate this
+        # TODO: Read the version from the header to instantiate this
         self._opcode_parser = ZMachineOpcodeParserV3(memory)
         self._dictionary = ZMachineDictionary(memory, header)
         self._variables = ZMachineVariables(memory, header, self._stack)
@@ -56,6 +55,14 @@ class ZMachineInterpreter(ABC):
     def pc(self) -> PC:
         """ Current value of the PC """
         return self._pc
+
+    @property
+    def header(self) -> ZCodeHeader:
+        return self._header
+
+    @property
+    def step_count(self) -> int:
+        return self._step_count
 
     @property
     def stack(self) -> ZMachineStack:
@@ -87,8 +94,8 @@ class ZMachineInterpreter(ABC):
         start_pc = self._pc
 
         try:
-            opcode_and_operands, next_pc = self._opcode_parser.parse(int(self._pc))
-            self._pc = PC(next_pc)
+            opcode_and_operands, next_pc = self._opcode_parser.parse(self._pc)
+            self._pc = next_pc
 
             opcode_method_name = '_opcode__' + opcode_and_operands.opcode
 
@@ -100,6 +107,8 @@ class ZMachineInterpreter(ABC):
 
                 # Call the opcode's handler method
                 self.__getattribute__(opcode_method_name)()
+
+                self._step_count += 1
         except (ZMachineExitException, ZMachineResetException) as e:
             # These exceptions are expected so just reraise them
             raise e
@@ -118,7 +127,7 @@ class ZMachineInterpreter(ABC):
         while True:
             self.step()
 
-            if (breakpoint_pc is not None) and (int(self._pc) == breakpoint_pc):
+            if (breakpoint_pc is not None) and (self._pc == breakpoint_pc):
                 return
 
     @abstractmethod
@@ -307,7 +316,9 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
 
         prop_addr = self._operand_val(0)
-        prop_data = self._obj_table.property_at(prop_addr.unsigned_int)
+        # XXX: this instruction provides the address of the property value, not the length header
+        # XXX: refactor object table code
+        prop_data = self._obj_table.property_at(prop_addr.unsigned_int - 1)
         self._variables.set(res_var, ZWord.from_unsigned_int(prop_data.size))
 
     def _opcode__inc(self):
@@ -360,14 +371,16 @@ class ZMachineInterpreter(ABC):
 
     def _opcode__je(self):
         predicate_type, offset = self._read_branch()
-        operand_vals = [self._operand_val(i) for i in range(len(self._operands))]
+        compare = self._operand_val(0)
+        operand_vals = [self._operand_val(i) for i in range(1, len(self._operands))]
 
-        for i in range(len(operand_vals) - 1):
-            if operand_vals[i].int != operand_vals[i+1].int:
-                self._handle_branch(False, predicate_type, offset)
+        for i in range(len(operand_vals)):
+            # It looks like Byte vals are truncated with 0's instead of signed
+            if compare.unsigned_int == operand_vals[i].unsigned_int:
+                self._handle_branch(True, predicate_type, offset)
                 return
 
-        self._handle_branch(True, predicate_type, offset)
+        self._handle_branch(False, predicate_type, offset)
 
     def _opcode__jl(self):
         predicate_type, offset = self._read_branch()
@@ -466,7 +479,7 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
         arr_addr = self._operand_val(0).unsigned_int
         word_idx = self._operand_val(1).unsigned_int
-        word_addr = arr_addr + word_idx * 2
+        word_addr = arr_addr + (word_idx * 2)
         ret_word = ZWord.read(self._memory, word_addr)
         self._variables.set(res_var, ret_word)
 
@@ -492,7 +505,10 @@ class ZMachineInterpreter(ABC):
         prop_num = self._operand_val(1).unsigned_int
 
         obj = self._obj_table.object(obj_num)
-        prop_addr = obj.properties.own_property_address(prop_num)
+        # TODO: This syntax is a bit clunky, should probably refactor the properties table interface
+        prop_addr = obj.properties.property_value_address(
+            obj.properties.own_property_address(prop_num)
+        )
 
         if prop_addr is None:
             prop_addr = 0
@@ -593,13 +609,28 @@ class ZMachineInterpreter(ABC):
         arr_addr = self._operand_val(0).unsigned_int
         word_offset = self._operand_val(1).unsigned_int * 2
         value = self._operand_val(2)
-        value.write(self._memory, arr_addr + word_offset)
+
+        if type(value) == ZByte:
+            value = value.pad()
+
+        address = arr_addr + word_offset
+
+        if address >= self._header.static_memory_address:
+            raise ZMachineIllegalOperation('attempt to write to static memory')
+
+        value.write(self._memory, address)
 
     def _opcode__storeb(self):
         arr_addr = self._operand_val(0).unsigned_int
         byte_offset = self._operand_val(1).unsigned_int
         value = self._operand_val(2)
-        value.write(self._memory, arr_addr + byte_offset)
+
+        address = arr_addr + byte_offset
+
+        if address >= self._header.static_memory_address:
+            raise ZMachineIllegalOperation('attempt to write to static memory')
+
+        value.write(self._memory, address)
 
     def _opcode__put_prop(self):
         obj_num = self._operand_val(0).unsigned_int
@@ -697,8 +728,10 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         pass
 
     def _opcode__call(self):
+        packed_address = ZWord(self._operand_val(0))
+
         # The first operand contains the packed address of the routine to call.
-        routine_address = self.expanded_packed_address(ZWord(self._operand_val(0)))
+        routine_address = self.expanded_packed_address(packed_address)
 
         # The first byte of the routine header contains the number of local variables the routine has
         local_vars_count = self._memory[routine_address]
@@ -716,29 +749,35 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # The return value the variable number is stored in the byte after the operands
         res_var = self._read_res_var()
 
-        # Add new frame to the stack for this routine
-        self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
+        if routine_address == 0:
+            self._variables.set(res_var, ZWord.from_int(0))
+        else:
+            # Add new frame to the stack for this routine
+            self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
 
-        # The address of the first instruction is directly after all the parameters
-        self._pc = PC(routine_address + 1 + (local_vars_count * 2))
+            # The address of the first instruction is directly after all the parameters
+            self._pc = PC(routine_address + 1 + (local_vars_count * 2))
 
     def _opcode__sread(self):
-        text_buffer_address = self._operand_val(0)
-        parse_buffer_address = self._operand_val(1)
+        text_buffer_address = self._operand_val(0).unsigned_int
+        parse_buffer_address = self._operand_val(1).unsigned_int
 
         # The max number of characters to read is in the first byte of the text buffer
-        max_chars = ZByte.read(self._memory, text_buffer_address.unsigned_int)
+        max_chars = ZByte.read(self._memory, text_buffer_address)
         text = self._keyboard.read_string(max_chars)
+
+        if text_buffer_address >= self._header.static_memory_address:
+            raise ZMachineIllegalOperation('attempt to write to static memory')
 
         # Put text into text buffer as ascii
         for i in range(len(text)):
-            ZByte.from_unsigned_int(ord(text[i])).write(self._memory, text_buffer_address.unsigned_int + 1 + i)
+            ZByte.from_unsigned_int(ord(text[i])).write(self._memory, text_buffer_address + 1 + i)
 
         # null-terminate the string
-        ZByte(b'\x00').write(self._memory, text_buffer_address.unsigned_int + 1 + len(text))
+        ZByte(b'\x00').write(self._memory, text_buffer_address + 1 + len(text))
 
         # tokenize
-        tokenize(self._memory, self._dictionary, text_buffer_address.unsigned_int, parse_buffer_address.unsigned_int)
+        tokenize(self._memory, self._dictionary, text_buffer_address, parse_buffer_address)
 
     def _opcode__pull(self):
         res_var = ZByte(self._operand_val(0))

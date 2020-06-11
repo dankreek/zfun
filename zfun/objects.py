@@ -173,7 +173,7 @@ class PropertiesTable(ABC):
         :return: Default value of prop_num
         """
         # each default is a word so the offset is 2 * prop_num
-        address = self._default_properties_address + (prop_num * 2)
+        address = self._default_properties_address + ((prop_num-1) * 2)
         return ZWord.read(self._memory, address)
 
     @staticmethod

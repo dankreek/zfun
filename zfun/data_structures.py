@@ -179,7 +179,7 @@ class ZByte(ZData):
 
         super().__init__(value)
 
-    def pad(self, is_signed: bool = True):
+    def pad(self, is_signed: bool = False):
         """ Pad an 8-bit value to make it 16-bits.
 
         :param is_signed: Pad the high byte with the sign bit if True, otherwise pad with 0x00
@@ -478,25 +478,42 @@ class PC:
             value = value.unsigned_int
         elif type(value) == int:
             if value < 0:
-                raise ValueError('Can not set the PC below 0')
+                raise ValueError('PC can only be a positive value')
         else:
             raise TypeError('Can only set the PC with a positive int or ZWord')
 
         self._value = value
 
+    def __eq__(self, other):
+        if type(other) == int:
+            return self._value == other
+        elif type(other) == PC:
+            return self._value == int(other)
+
     def __add__(self, other):
         if issubclass(type(other), ZData):
             other = other.unsigned_int
 
-        return PC(self._value + other)
+        new_val = self._value + other
+
+        if new_val < 0:
+            raise ValueError('PC can only be a positive value')
+
+        return PC(new_val)
 
     def __sub__(self, other):
         if issubclass(type(other), ZData):
             other = other.unsigned_int
 
-        return PC(self._value - other)
+        new_val = self._value - other
+
+        if new_val < 0:
+            raise ValueError('PC can only be a positive value')
+
+        return PC(new_val)
 
     def __mul__(self, other):
+        assert other > 0, 'PC can not be less than 0'
         if issubclass(type(other), ZData):
             other = other.unsigned_int
 

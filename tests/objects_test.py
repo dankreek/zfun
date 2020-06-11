@@ -71,7 +71,6 @@ def test_attributes_v5(zork_v5_obj_table: ZMachineObjectTable):
 
 def test_tree_v3(zork_v3_obj_table: ZMachineObjectTable):
     west_of_house = zork_v3_obj_table.object(180)
-    # XXX: finish object tree tests
     assert west_of_house.parent == 82
     assert west_of_house.child == 181
     assert west_of_house.sibling == 15
