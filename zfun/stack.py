@@ -33,6 +33,9 @@ class ZMachineStack:
 
     def push(self, x: ZData):
         assert issubclass(type(x), ZData), 'can only push ZData types on to the stack'
+        if type(x) == ZByte:
+            x = x.pad(is_signed=False)
+
         self._frames[-1].stack_data.append(x)
 
     def pop(self) -> ZData:
@@ -88,7 +91,12 @@ class ZMachineStack:
         local_vars = [ZWord.from_int(0)] * num_locals
 
         for i in range(len(local_var_vals)):
-            local_vars[i] = local_var_vals[i]
+            if len(local_var_vals[i]) == 1:
+                val = local_var_vals[i].pad(False)
+            else:
+                val = local_var_vals[i]
+
+            local_vars[i] = val
 
         new_frame = ZMachineStackFrame(ret_addr, res_var, local_vars, [])
         self._frames.append(new_frame)
@@ -105,8 +113,10 @@ class ZMachineStack:
         cur_frame = self._frames.pop()
         return cur_frame.return_pc, cur_frame.result_var
 
-    def stack_frames(self) -> List[ZMachineStackFrame]:
-        return self._frames
+    @property
+    def frame(self) -> ZMachineStackFrame:
+        """ Current routine's stack frame """
+        return self._frames[-1]
 
 
 class ZMachineStackUnderflow(ZMachineException):

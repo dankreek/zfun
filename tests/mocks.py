@@ -9,7 +9,7 @@ class MockScreen(ZMachineScreen):
         self._is_status_displayed = False
 
     def initialize(self, memory: memoryview, stack: ZMachineStack):
-        pass
+        memory[1] = 0x20
 
     def terminate(self):
         pass

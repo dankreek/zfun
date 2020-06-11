@@ -16,8 +16,8 @@ def test_push_peek_and_pop(stack: ZMachineStack):
     stack.push(b)
     stack.push(c)
 
-    assert stack.peek() == c
-    assert stack.pop() == c
+    assert stack.peek() == c.pad()
+    assert stack.pop() == c.pad()
 
     assert stack.peek() == b
     assert stack.pop() == b

@@ -179,7 +179,7 @@ class ZByte(ZData):
 
         super().__init__(value)
 
-    def pad(self, is_signed: bool = True):
+    def pad(self, is_signed: bool = False):
         """ Pad an 8-bit value to make it 16-bits.
 
         :param is_signed: Pad the high byte with the sign bit if True, otherwise pad with 0x00
@@ -483,6 +483,12 @@ class PC:
             raise TypeError('Can only set the PC with a positive int or ZWord')
 
         self._value = value
+
+    def __eq__(self, other):
+        if type(other) == int:
+            return self._value == other
+        elif type(other) == PC:
+            return self._value == int(other)
 
     def __add__(self, other):
         if issubclass(type(other), ZData):

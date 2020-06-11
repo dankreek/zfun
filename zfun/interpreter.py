@@ -23,6 +23,7 @@ class ZMachineInterpreter(ABC):
         self._memory = memory
         self._screen = screen
         self._keyboard = keyboard
+        self._step_count = 0
 
         self._stack = ZMachineStack()
 
@@ -56,6 +57,14 @@ class ZMachineInterpreter(ABC):
     def pc(self) -> PC:
         """ Current value of the PC """
         return self._pc
+
+    @property
+    def header(self) -> ZCodeHeader:
+        return self._header
+
+    @property
+    def step_count(self) -> int:
+        return self._step_count
 
     @property
     def stack(self) -> ZMachineStack:
@@ -100,6 +109,8 @@ class ZMachineInterpreter(ABC):
 
                 # Call the opcode's handler method
                 self.__getattribute__(opcode_method_name)()
+
+                self._step_count += 1
         except (ZMachineExitException, ZMachineResetException) as e:
             # These exceptions are expected so just reraise them
             raise e
@@ -307,7 +318,9 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
 
         prop_addr = self._operand_val(0)
-        prop_data = self._obj_table.property_at(prop_addr.unsigned_int)
+        # XXX: this instruction provides the address of the property value, not the length header
+        # XXX: refactor object table code
+        prop_data = self._obj_table.property_at(prop_addr.unsigned_int - 1)
         self._variables.set(res_var, ZWord.from_unsigned_int(prop_data.size))
 
     def _opcode__inc(self):
@@ -360,14 +373,16 @@ class ZMachineInterpreter(ABC):
 
     def _opcode__je(self):
         predicate_type, offset = self._read_branch()
-        operand_vals = [self._operand_val(i) for i in range(len(self._operands))]
+        compare = self._operand_val(0)
+        operand_vals = [self._operand_val(i) for i in range(1, len(self._operands))]
 
-        for i in range(len(operand_vals) - 1):
-            if operand_vals[i].int != operand_vals[i+1].int:
-                self._handle_branch(False, predicate_type, offset)
+        for i in range(len(operand_vals)):
+            # It looks like Byte vals are truncated with 0's instead of signed
+            if compare.unsigned_int == operand_vals[i].unsigned_int:
+                self._handle_branch(True, predicate_type, offset)
                 return
 
-        self._handle_branch(True, predicate_type, offset)
+        self._handle_branch(False, predicate_type, offset)
 
     def _opcode__jl(self):
         predicate_type, offset = self._read_branch()
@@ -466,7 +481,7 @@ class ZMachineInterpreter(ABC):
         res_var = self._read_res_var()
         arr_addr = self._operand_val(0).unsigned_int
         word_idx = self._operand_val(1).unsigned_int
-        word_addr = arr_addr + word_idx * 2
+        word_addr = arr_addr + (word_idx * 2)
         ret_word = ZWord.read(self._memory, word_addr)
         self._variables.set(res_var, ret_word)
 
@@ -492,7 +507,10 @@ class ZMachineInterpreter(ABC):
         prop_num = self._operand_val(1).unsigned_int
 
         obj = self._obj_table.object(obj_num)
-        prop_addr = obj.properties.own_property_address(prop_num)
+        # TODO: This syntax is a bit clunky, should probably refactor the properties table interface
+        prop_addr = obj.properties.property_value_address(
+            obj.properties.own_property_address(prop_num)
+        )
 
         if prop_addr is None:
             prop_addr = 0
@@ -593,6 +611,10 @@ class ZMachineInterpreter(ABC):
         arr_addr = self._operand_val(0).unsigned_int
         word_offset = self._operand_val(1).unsigned_int * 2
         value = self._operand_val(2)
+
+        if type(value) == ZByte:
+            value = value.pad()
+
         value.write(self._memory, arr_addr + word_offset)
 
     def _opcode__storeb(self):
@@ -699,30 +721,28 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
     def _opcode__call(self):
         packed_address = ZWord(self._operand_val(0))
 
-        if packed_address.unsigned_int == 0:
-            ret_pc, ret_var = self._stack.pop_routine_call()
-            self._variables.set(ret_var, ZWord.from_int(0))
-            self._pc = ret_pc
+        # The first operand contains the packed address of the routine to call.
+        routine_address = self.expanded_packed_address(packed_address)
+
+        # The first byte of the routine header contains the number of local variables the routine has
+        local_vars_count = self._memory[routine_address]
+
+        # Each local variable's initial value is stored in the words following the word count byte
+        initial_local_var_values = [
+            ZWord.read(self._memory, routine_address + 1 + (i * 2))
+            for i in range(local_vars_count)
+        ]
+
+        # The additional operands of the call opcode are set in the new local vars
+        for local_var_num in range(len(self._operands) - 1):
+            initial_local_var_values[local_var_num] = self._operand_val(local_var_num+1)
+
+        # The return value the variable number is stored in the byte after the operands
+        res_var = self._read_res_var()
+
+        if routine_address == 0:
+            self._variables.set(res_var, ZWord.from_int(0))
         else:
-            # The first operand contains the packed address of the routine to call.
-            routine_address = self.expanded_packed_address(packed_address)
-
-            # The first byte of the routine header contains the number of local variables the routine has
-            local_vars_count = self._memory[routine_address]
-
-            # Each local variable's initial value is stored in the words following the word count byte
-            initial_local_var_values = [
-                ZWord.read(self._memory, routine_address + 1 + (i * 2))
-                for i in range(local_vars_count)
-            ]
-
-            # The additional operands of the call opcode are set in the new local vars
-            for local_var_num in range(len(self._operands) - 1):
-                initial_local_var_values[local_var_num] = self._operand_val(local_var_num+1)
-
-            # The return value the variable number is stored in the byte after the operands
-            res_var = self._read_res_var()
-
             # Add new frame to the stack for this routine
             self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
 
