@@ -763,7 +763,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         parse_buffer_address = self._operand_val(1).unsigned_int
 
         # The max number of characters to read is in the first byte of the text buffer
-        max_chars = ZByte.read(self._memory, text_buffer_address)
+        max_chars = ZByte.read(self._memory, text_buffer_address).unsigned_int
         text = self._keyboard.read_string(max_chars)
 
         if text_buffer_address >= self._header.static_memory_address:
