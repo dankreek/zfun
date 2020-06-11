@@ -26,8 +26,6 @@ class ZMachineInterpreter(ABC):
         self._step_count = 0
 
         self._stack = ZMachineStack()
-
-        # XXX: Make this a ZWord in header?
         self._pc: PC = PC(header.initial_pc_value)
 
         # XXX: Read the version from the header to instantiate this
@@ -96,8 +94,8 @@ class ZMachineInterpreter(ABC):
         start_pc = self._pc
 
         try:
-            opcode_and_operands, next_pc = self._opcode_parser.parse(int(self._pc))
-            self._pc = PC(next_pc)
+            opcode_and_operands, next_pc = self._opcode_parser.parse(self._pc)
+            self._pc = next_pc
 
             opcode_method_name = '_opcode__' + opcode_and_operands.opcode
 
@@ -129,7 +127,7 @@ class ZMachineInterpreter(ABC):
         while True:
             self.step()
 
-            if (breakpoint_pc is not None) and (int(self._pc) == breakpoint_pc):
+            if (breakpoint_pc is not None) and (self._pc == breakpoint_pc):
                 return
 
     @abstractmethod

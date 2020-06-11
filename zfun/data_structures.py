@@ -478,7 +478,7 @@ class PC:
             value = value.unsigned_int
         elif type(value) == int:
             if value < 0:
-                raise ValueError('Can not set the PC below 0')
+                raise ValueError('PC can only be a positive value')
         else:
             raise TypeError('Can only set the PC with a positive int or ZWord')
 
@@ -494,15 +494,26 @@ class PC:
         if issubclass(type(other), ZData):
             other = other.unsigned_int
 
-        return PC(self._value + other)
+        new_val = self._value + other
+
+        if new_val < 0:
+            raise ValueError('PC can only be a positive value')
+
+        return PC(new_val)
 
     def __sub__(self, other):
         if issubclass(type(other), ZData):
             other = other.unsigned_int
 
-        return PC(self._value - other)
+        new_val = self._value - other
+
+        if new_val < 0:
+            raise ValueError('PC can only be a positive value')
+
+        return PC(new_val)
 
     def __mul__(self, other):
+        assert other > 0, 'PC can not be less than 0'
         if issubclass(type(other), ZData):
             other = other.unsigned_int
 

@@ -2,7 +2,7 @@ from enum import Enum
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Union, Tuple, List
 
-from .data_structures import ZWord, ZByte, ZData
+from .data_structures import ZWord, ZByte, ZData, PC
 
 
 class OpcodeForm(Enum):
@@ -172,17 +172,18 @@ class ZMachineOpcodeParser(ABC):
         else:
             return OpcodeForm.LONG
 
-    # XXX: fix signature with PC
-    def parse(self, address: int) -> Tuple[ZMachineOpcode, int]:
+    def parse(self, opcode_pc: PC) -> Tuple[ZMachineOpcode, PC]:
         """ Get the opcode and arguments at the given address.
 
         Note that the next PC that is returned will be at the position where Opcode decoding left off,
         so if an opcode needs to read its return variable number or a string constant it will need
         this info.
 
-        :param address: Memory address for opcode
+        :param opcode_pc: Memory address for opcode
         :return: ZMachineOpcode and operands/types and the memory address where the operand decoding stopped.
         """
+        address = int(opcode_pc)
+
         opcode_byte = self._memory[address]
         opcode_form = self._opcode_form(opcode_byte)
 
@@ -204,7 +205,7 @@ class ZMachineOpcodeParser(ABC):
 
         operands, next_pc = self._read_operands(next_pc, operand_types)
 
-        return ZMachineOpcode(opcode_name, operand_types, operands, bytes(self._memory[address:next_pc])), next_pc
+        return ZMachineOpcode(opcode_name, operand_types, operands, bytes(self._memory[address:next_pc])), PC(next_pc)
 
 
 short_form_1op_opcodes_v3 = [
