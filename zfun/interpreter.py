@@ -613,13 +613,24 @@ class ZMachineInterpreter(ABC):
         if type(value) == ZByte:
             value = value.pad()
 
-        value.write(self._memory, arr_addr + word_offset)
+        address = arr_addr + word_offset
+
+        if address >= self._header.static_memory_address:
+            raise ZMachineIllegalOperation('attempt to write to static memory')
+
+        value.write(self._memory, address)
 
     def _opcode__storeb(self):
         arr_addr = self._operand_val(0).unsigned_int
         byte_offset = self._operand_val(1).unsigned_int
         value = self._operand_val(2)
-        value.write(self._memory, arr_addr + byte_offset)
+
+        address = arr_addr + byte_offset
+
+        if address >= self._header.static_memory_address:
+            raise ZMachineIllegalOperation('attempt to write to static memory')
+
+        value.write(self._memory, address)
 
     def _opcode__put_prop(self):
         obj_num = self._operand_val(0).unsigned_int
@@ -748,22 +759,25 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             self._pc = PC(routine_address + 1 + (local_vars_count * 2))
 
     def _opcode__sread(self):
-        text_buffer_address = self._operand_val(0)
-        parse_buffer_address = self._operand_val(1)
+        text_buffer_address = self._operand_val(0).unsigned_int
+        parse_buffer_address = self._operand_val(1).unsigned_int
 
         # The max number of characters to read is in the first byte of the text buffer
-        max_chars = ZByte.read(self._memory, text_buffer_address.unsigned_int)
+        max_chars = ZByte.read(self._memory, text_buffer_address)
         text = self._keyboard.read_string(max_chars)
+
+        if text_buffer_address >= self._header.static_memory_address:
+            raise ZMachineIllegalOperation('attempt to write to static memory')
 
         # Put text into text buffer as ascii
         for i in range(len(text)):
-            ZByte.from_unsigned_int(ord(text[i])).write(self._memory, text_buffer_address.unsigned_int + 1 + i)
+            ZByte.from_unsigned_int(ord(text[i])).write(self._memory, text_buffer_address + 1 + i)
 
         # null-terminate the string
-        ZByte(b'\x00').write(self._memory, text_buffer_address.unsigned_int + 1 + len(text))
+        ZByte(b'\x00').write(self._memory, text_buffer_address + 1 + len(text))
 
         # tokenize
-        tokenize(self._memory, self._dictionary, text_buffer_address.unsigned_int, parse_buffer_address.unsigned_int)
+        tokenize(self._memory, self._dictionary, text_buffer_address, parse_buffer_address)
 
     def _opcode__pull(self):
         res_var = ZByte(self._operand_val(0))
