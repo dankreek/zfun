@@ -506,14 +506,13 @@ class ZMachineInterpreter(ABC):
 
         obj = self._obj_table.object(obj_num)
         # TODO: This syntax is a bit clunky, should probably refactor the properties table interface
-        prop_addr = obj.properties.property_value_address(
-            obj.properties.own_property_address(prop_num)
-        )
+        prop_address = obj.properties.own_property_address(prop_num)
 
-        if prop_addr is None:
-            prop_addr = 0
+        if prop_address is not None:
+            self._variables.set(res_var, ZWord.from_unsigned_int(obj.properties.property_value_address(prop_address)))
+        else:
+            self._variables.set(res_var, ZWord.from_int(0))
 
-        self._variables.set(res_var, ZWord.from_unsigned_int(prop_addr))
 
     def _opcode__get_next_prop(self):
         res_var = self._read_res_var()
