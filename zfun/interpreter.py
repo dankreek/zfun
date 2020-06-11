@@ -28,7 +28,7 @@ class ZMachineInterpreter(ABC):
         self._stack = ZMachineStack()
         self._pc: PC = PC(header.initial_pc_value)
 
-        # XXX: Read the version from the header to instantiate this
+        # TODO: Read the version from the header to instantiate this
         self._opcode_parser = ZMachineOpcodeParserV3(memory)
         self._dictionary = ZMachineDictionary(memory, header)
         self._variables = ZMachineVariables(memory, header, self._stack)

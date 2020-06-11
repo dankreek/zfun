@@ -522,7 +522,7 @@ class ZCodeHeaderV6(ZCodeHeaderV5):
 
     @property
     def initial_main_routine_address(self) -> int:
-        # XXX: return the unpacked address
+        # TODO: return the unpacked address
         pass
 
     @property
@@ -539,7 +539,7 @@ class ZCodeHeaderV6(ZCodeHeaderV5):
         return read_word(self._view, 0x2a) * 8
 
 
-# XXX: make up better names for read_header and get_header
+# TODO: make up better names for read_header and get_header
 def get_header(data_view: Union[memoryview, bytes]):
     version = ZCodeHeader.read_version(data_view)
 

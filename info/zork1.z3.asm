@@ -4234,7 +4234,6 @@ L03 = "Cretin" #4
  8f59:  95 03                   INC             L02
  8f5b:  e0 2a 47 55 07 02 03 00 CALL            8eaa (L06,L01,L02) -> -(SP)
  8f63:  8c 00 6c                JUMP            8fd0
- ;; XXX: All operands should be equal here      v   v   v
  8f66:  c1 a7 04 07 04 45       JE              L03,L06,#04 [FALSE] 8f6f
  8f6c:  8c 00 5c                JUMP            8fc9
  8f6f:  4a 04 07 80 57          TEST_ATTR       L03,#07 [TRUE] 8fc9
