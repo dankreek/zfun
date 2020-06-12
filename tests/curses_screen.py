@@ -61,6 +61,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         return True
 
+    # XXX: Fix sig so that the entire interpreter is passed in
     def initialize(self, memory: memoryview, stack: ZMachineStack):
         self._header = get_header(memory)
         self._variables = ZMachineVariables(memory, self._header, stack)
@@ -81,6 +82,10 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         # Set header flags for this screen's capability in the z-machine
         if self._header.version == 3:
+            # Some earlier games don't explicitly turn on the status line
+            if self._header.serial_code in ['840726']:
+                self.is_status_displayed = True
+
             # Set flags 1
             self._header.is_status_line_unavailable = False
             self._header.is_screen_splitting_available = True
@@ -199,11 +204,14 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         self._std_scr.move(0, 0)
 
-        obj_name_len = curses.COLS - len(status) - 1
-        obj_name = self._obj_table.object(self._variables.global_val(0).unsigned_int).properties.name
-        if len(obj_name) > obj_name_len:
-            # truncate object name if too long
-            obj_name = obj_name[:obj_name_len-3] + '... '
+        if self._variables.global_val(0).unsigned_int > 0:
+            obj_name_len = curses.COLS - len(status) - 1
+            obj_name = self._obj_table.object(self._variables.global_val(0).unsigned_int).properties.name
+            if len(obj_name) > obj_name_len:
+                # truncate object name if too long
+                obj_name = obj_name[:obj_name_len-3] + '... '
+        else:
+            obj_name = ''
 
         self._std_scr.addstr(obj_name, curses.A_REVERSE)
         self._std_scr.addstr(' ' * (curses.COLS - len(obj_name) - len(status)), curses.A_REVERSE)
