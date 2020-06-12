@@ -14,7 +14,7 @@ def main(argv):
     header, data = header_and_data(argv[1])
     dictionary = ZMachineDictionary(data, header)
 
-    for i in range(0, dictionary.number_of_entries):
+    for i in range(1, dictionary.number_of_entries+1):
         entry = dictionary.entry(i)
         print(f'{i} = {entry.text}')
 

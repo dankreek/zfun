@@ -43,3 +43,7 @@ def test_parse_z_string_with_next():
     assert next_addr == len(encoded)
 
 
+def test_create_fixed_len_z_string():
+    assert z_string('leave', 4).hex() == '4546ed45'
+    assert z_string('leaves', 4).hex() == '4546ed58'
+

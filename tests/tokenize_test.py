@@ -39,17 +39,17 @@ def test_tokenize(zork_v3_dict: ZMachineDictionary):
     assert memory[parse_buffer_addr + 1] == 4, 'The parse buffer should have marked that 4 tokens were parsed'
 
     token_block_0 = read_token_block(memory, parse_buffer_addr, 0)
-    assert token_block_0.dict_addr == zork_v3_dict.entry_addr(251), 'correct address of the word `get` was found'
+    assert token_block_0.dict_addr == zork_v3_dict.entry_addr(252), 'correct address of the word `get` was found'
     assert token_block_0.text_pos == 1, 'correct position of the word `get` was found'
     assert token_block_0.word_len == 3, 'correct length of the word `get` was found'
 
     token_block_1 = read_token_block(memory, parse_buffer_addr, 1)
-    assert token_block_1.dict_addr == zork_v3_dict.entry_addr(2), 'correct address of the comma was found'
+    assert token_block_1.dict_addr == zork_v3_dict.entry_addr(3), 'correct address of the comma was found'
     assert token_block_1.text_pos == 4, 'correct position of the comma was found'
     assert token_block_1.word_len == 1, 'correct length of the comma was found'
 
     token_block_2 = read_token_block(memory, parse_buffer_addr, 2)
-    assert token_block_2.dict_addr == zork_v3_dict.entry_addr(335), 'correct address of the word `lamp` was found'
+    assert token_block_2.dict_addr == zork_v3_dict.entry_addr(336), 'correct address of the word `lamp` was found'
     assert token_block_2.text_pos == 8, 'correct position of the word `lamp` was found'
     assert token_block_2.word_len == 4, 'correct length of the word `lamp` was found'
 
