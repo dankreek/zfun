@@ -1,7 +1,7 @@
 import curses
 import textwrap
 
-from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, get_header, ZMachineStack
+from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType
 from typing import List, Union, Tuple
 
 
@@ -145,7 +145,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
             self._print_backscroll_line(self._back_scroll[i])
 
             # If an entire page of text has been sent since the last time a user was prompted, ask them to press a key
-            if (i - self._last_prompt_idx) > (self._main_win_height - 3):
+            if self._back_scroll[i].endswith('\n') and ((i - self._last_prompt_idx + 2) > self._main_win_height):
                 if self._handle_more_prompt():
                     self._last_prompt_idx = i
                     self._std_scr.move(curses.LINES-1, 0)
