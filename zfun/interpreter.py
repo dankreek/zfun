@@ -533,7 +533,10 @@ class ZMachineInterpreter(ABC):
             next_prop_num = 0
         else:
             next_prop = self._obj_table.property_at(prop_info.next_prop_address)
-            next_prop_num = next_prop.number
+            if next_prop is None:
+                next_prop_num = 0
+            else:
+                next_prop_num = next_prop.number
 
         self._variables.set(res_var, ZWord.from_unsigned_int(next_prop_num))
 
