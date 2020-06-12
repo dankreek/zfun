@@ -56,10 +56,10 @@ class ZMachineDictionary:
         return read_word(self._memory, self._addr + 1 + self._separators_len + 1)
 
     @property
-    def decoded_text_len(self) -> int:
+    def encoded_text_len(self) -> int:
         """ Length (in bytes) of the encoded text for a dictionary entry for the Z-machine version """
 
-        # Version 1-3 have 3 byte (4 z-chars) encoded text length
+        # Version 1-3 have 5 byte (4 z-chars) encoded text length
         if self._version <= 3:
             return 4
         # Versions 4-6 have 6 bytes (9 z-chars)
@@ -72,10 +72,10 @@ class ZMachineDictionary:
         :param entry_num:
         :return:
         """
-        assert 0 <= entry_num < self.number_of_entries
+        assert 1 <= entry_num <= self.number_of_entries
 
         entries_base_addr = self._addr + 1 + self._separators_len + 3
-        offset = entry_num * self.entry_length
+        offset = (entry_num - 1) * self.entry_length
         return entries_base_addr + offset
 
     def entry(self, entry_num: int) -> DictionaryEntry:
@@ -84,9 +84,9 @@ class ZMachineDictionary:
         :param entry_num: Dictionary entry number
         :return: The text of the dictionary word and its associated data
         """
-        assert entry_num >= 0
+        assert entry_num >= 1
 
-        if entry_num >= self.number_of_entries:
+        if entry_num > self.number_of_entries:
             raise ValueError(f'Out of range, dictionary contains {self.number_of_entries} entries')
         else:
             entry_addr = self.entry_addr(entry_num)
@@ -98,13 +98,10 @@ class ZMachineDictionary:
         :param entry_addr: Dictionary entry address
         :return: Dictionary entry at address
         """
-        encoded_text_len = self.entry_length - 4
-
-        encoded_text = self._memory[entry_addr:entry_addr+encoded_text_len]
+        encoded_text = bytes(self._memory[entry_addr:entry_addr+self.encoded_text_len])
         decoded_text = z_string_to_str(self._memory, entry_addr, self._abbrev_table_addr)
-        data = self._memory[entry_addr + self.decoded_text_len:entry_addr + self.entry_length]
+        data = bytes(self._memory[entry_addr + self.encoded_text_len:entry_addr + self.entry_length])
         return DictionaryEntry(decoded_text, encoded_text, data)
-
 
     def lookup_word(self, word: str) -> int:
         """ Lookup a word in the dictionary and return its memory address.
@@ -112,11 +109,11 @@ class ZMachineDictionary:
         :param word: Word to lookup in the dictionary
         :return: The address in memory of the dictionary entry, or 0 if the word is not found
         """
-        lookup_bytes = z_string(word.lower(), self.entry_length - 4)
+        lookup_bytes = z_string(word.lower(), self.encoded_text_len)
 
         # Perform a binary search to find the dictionary word
-        left = 0
-        right = self.number_of_entries - 1
+        left = 1
+        right = self.number_of_entries
         while left <= right:
             i = (left + right) // 2
             entry = self.entry(i)

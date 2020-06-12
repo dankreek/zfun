@@ -1,6 +1,6 @@
 import pytest
 
-from zfun import ZMachineDictionary, get_header
+from zfun import ZMachineDictionary, get_header, z_string
 
 
 def test_dictionary_word_separators(zork_v3_dict: ZMachineDictionary):
@@ -9,11 +9,11 @@ def test_dictionary_word_separators(zork_v3_dict: ZMachineDictionary):
 
 
 dict_entries_test_cases = [
-    (0, '$ve'),
-    (242, 'fuck'),
-    (534, 'shit'),
-    (237, 'froboz'),
-    (696, 'zzmgck')
+    (1, '$ve'),
+    (243, 'fuck'),
+    (535, 'shit'),
+    (238, 'froboz'),
+    (697, 'zzmgck')
 ]
 
 
@@ -24,14 +24,39 @@ def test_dictionary_entries(entry_num: int, expected_text: str, zork_v3_dict: ZM
     assert len(entry.data) == 3
 
 
+# ('leaves', 347, 'why doesn\'t this work?')
+def test_word_lookup_v3_leaves_bug(zork_v3_dict: ZMachineDictionary):
+    word_addr = zork_v3_dict.lookup_word('leave')
+    assert word_addr == zork_v3_dict.entry_addr(347)
+
+    word_addr = zork_v3_dict.lookup_word('leaves')
+    assert word_addr == zork_v3_dict.entry_addr(348)
+
+
+@pytest.mark.skip('it seems all words are properly encoded')
+def test_all_word_encoding(zork_v3_dict: ZMachineDictionary):
+    wrong_words = dict()
+    for i in range(1, zork_v3_dict.number_of_entries+1):
+        addr = zork_v3_dict.entry_addr(i)
+        entry = zork_v3_dict.entry_at(addr)
+        expected_z_string = z_string(entry.text, zork_v3_dict.encoded_text_len)
+        if entry.encoded_text != expected_z_string:
+            wrong_words[i] = dict(text=entry.text,
+                                  found_z_string=entry.encoded_text.hex(),
+                                  expected_z_string=expected_z_string.hex())
+
+    assert wrong_words == {}
+
+
 word_lookup_test_cases_v3 = [
-    ('zzmgck', 696, 'Finds last word'),
-    ('a', 4, 'Finds first alphabetical word'),
-    ('lid', 350, 'Finds the middlest word'),
-    ('Air', 10, 'Finds capitalized words'),
-    ('air-p', 11, 'Finds words with symbols in them'),
-    ('bracelet', 73, 'Finds a word that needs to be truncated'),
-    (',', 2, 'Finds a word separator character'),
+    ('zzmgck', 697, 'Finds last word'),
+    ('zorkmi', 696, 'Second-to-last word'),
+    ('a', 5, 'Finds first alphabetical word'),
+    ('lid', 351, 'Finds the middlest word'),
+    ('Air', 11, 'Finds capitalized words'),
+    ('air-p', 12, 'Finds words with symbols in them'),
+    ('bracelet', 74, 'Finds a word that needs to be truncated'),
+    (',', 3, 'Finds a word separator character'),
 ]
 
 
@@ -42,13 +67,13 @@ def test_word_lookup_v3(word: str, expected_entry_num: int, desc: str, zork_v3_d
 
 
 word_lookup_test_cases_v5 = [
-    ('zzmgck', 691, 'Finds last word'),
-    ('a', 8, 'Finds first alphabetical word'),
-    ('ledge', 341, 'Finds the middlest word'),
-    ('Air', 15, 'Finds capitalized words'),
-    ('air-pump', 16, 'Finds words with symbols in them'),
-    ('disenchant', 165, 'Finds a word that needs to be truncated'),
-    (',', 2, 'Finds a word separator character'),
+    ('zzmgck', 692, 'Finds last word'),
+    ('a', 9, 'Finds first alphabetical word'),
+    ('ledge', 342, 'Finds the middlest word'),
+    ('Air', 16, 'Finds capitalized words'),
+    ('air-pump', 17, 'Finds words with symbols in them'),
+    ('disenchant', 166, 'Finds a word that needs to be truncated'),
+    (',', 3, 'Finds a word separator character'),
 ]
 
 
