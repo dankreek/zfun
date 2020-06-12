@@ -81,9 +81,8 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         # Set header flags for this screen's capability in the z-machine
         if self._header.version == 3:
-            # Some earlier games don't explicitly turn on the status line
-            if self._header.serial_code in ['840726']:
-                self.is_status_displayed = True
+            # This is always true for V3, should probably fix this in the interface later
+            self.is_status_displayed = True
 
             # Set flags 1
             self._header.is_status_line_unavailable = False
