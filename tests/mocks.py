@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from zfun import ZMachineScreen, ZMachineStack, ZMachineInput
+from zfun import ZMachineScreen, ZMachineInterpreter, ZMachineInput
 
 
 class MockScreen(ZMachineScreen):
@@ -8,8 +8,8 @@ class MockScreen(ZMachineScreen):
         self._printed_data: List[str] = []
         self._is_status_displayed = False
 
-    def initialize(self, memory: memoryview, stack: ZMachineStack):
-        memory[1] = 0x20
+    def initialize(self, interpreter: ZMachineInterpreter):
+        interpreter.header.is_status_line_unavailable = True
 
     def terminate(self):
         pass

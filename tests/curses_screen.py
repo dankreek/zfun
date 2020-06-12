@@ -1,7 +1,7 @@
 import curses
 import textwrap
 
-from zfun import ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, get_header, ZMachineStack
+from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType
 from typing import List, Union, Tuple
 
 
@@ -22,7 +22,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         # Index into the back scroll indicating the last time the user was prompted for anything
         # to facilitate prompting the user for [MORE]
-        self._last_prompt_idx = 0
+        self._last_prompt_idx = -1
 
         self._obj_name: str = ''
         self._global2: int = 0
@@ -61,10 +61,10 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         return True
 
-    def initialize(self, memory: memoryview, stack: ZMachineStack):
-        self._header = get_header(memory)
-        self._variables = ZMachineVariables(memory, self._header, stack)
-        self._obj_table = ZMachineObjectTable(memory, self._header)
+    def initialize(self, interpreter: ZMachineInterpreter):
+        self._header = interpreter.header
+        self._variables = interpreter.variables
+        self._obj_table = interpreter.object_table
 
         # Standard curses initialization
         self._std_scr.clear()
@@ -81,6 +81,9 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         # Set header flags for this screen's capability in the z-machine
         if self._header.version == 3:
+            # This is always true for V3, should probably fix this in the interface later
+            self.is_status_displayed = True
+
             # Set flags 1
             self._header.is_status_line_unavailable = False
             self._header.is_screen_splitting_available = True
@@ -116,23 +119,32 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
     def _main_win_height(self):
         return curses.LINES - (1 if self.is_status_displayed else 0)
 
+    def _print_backscroll_line(self, line: str):
+        if len(line.rstrip()) == curses.COLS:
+            line = line.rstrip()
+
+        self._std_scr.addstr(curses.LINES-1, 0, line)
+
     def print(self, text: str):
         orig_back_scroll_size = len(self._back_scroll)
+        if orig_back_scroll_size > 0:
+            is_last_line_finished = self._back_scroll[-1][-1] == '\n'
+        else:
+            is_last_line_finished = False
 
         self._append_text_to_history(text)
         self._apply_history_to_back_scroll()
 
-        if orig_back_scroll_size > 0:
+        if not is_last_line_finished:
             # reprint the last line, in the case where the line has been appended
-            self._std_scr.addstr(curses.LINES-2, 0, self._back_scroll[orig_back_scroll_size-1])
+            self._print_backscroll_line(self._back_scroll[orig_back_scroll_size-1])
 
         # Output each new line and allow for hardware scrolling
         for i in range(orig_back_scroll_size, len(self._back_scroll)):
-            output_str = self._back_scroll[i]
-            self._std_scr.addstr(curses.LINES-1, 0, output_str)
+            self._print_backscroll_line(self._back_scroll[i])
 
             # If an entire page of text has been sent since the last time a user was prompted, ask them to press a key
-            if (i - self._last_prompt_idx) > (self._main_win_height - 3):
+            if self._back_scroll[i].endswith('\n') and ((i - self._last_prompt_idx) >= (self._main_win_height - 2)):
                 if self._handle_more_prompt():
                     self._last_prompt_idx = i
                     self._std_scr.move(curses.LINES-1, 0)
@@ -168,14 +180,14 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
         orig_y, orig_x = self._std_scr.getyx()
 
         if self._header.status_line_type == StatusLineType.SCORE_TURNS:
-            score = self._variables.global_signed_val(1)
-            turns = self._variables.global_val(2)
+            score = self._variables.global_val(1).int
+            turns = self._variables.global_val(2).unsigned_int
 
             status = f'Score: {score}/{turns}'
             status += ' ' * (19 - len(status))
         else:
-            hours = self._variables.global_val(1)
-            mins = self._variables.global_val(2)
+            hours = self._variables.global_val(1).unsigned_int
+            mins = self._variables.global_val(2).unsigned_int
 
             if hours < 12:
                 day_part = 'am'
@@ -190,11 +202,14 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         self._std_scr.move(0, 0)
 
-        obj_name_len = curses.COLS - len(status) - 1
-        obj_name = self._obj_table.object(self._variables.global_val(0)).properties.name
-        if len(obj_name) > obj_name_len:
-            # truncate object name if too long
-            obj_name = obj_name[:obj_name_len-3] + '... '
+        if self._variables.global_val(0).unsigned_int > 0:
+            obj_name_len = curses.COLS - len(status) - 1
+            obj_name = self._obj_table.object(self._variables.global_val(0).unsigned_int).properties.name
+            if len(obj_name) > obj_name_len:
+                # truncate object name if too long
+                obj_name = obj_name[:obj_name_len-3] + '... '
+        else:
+            obj_name = ''
 
         self._std_scr.addstr(obj_name, curses.A_REVERSE)
         self._std_scr.addstr(' ' * (curses.COLS - len(obj_name) - len(status)), curses.A_REVERSE)
@@ -234,18 +249,18 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
             if line == '\n':
                 self._back_scroll.append(line)
             else:
-                wrapped_text = textwrap.fill(line, width=curses.COLS)
+                if line.lstrip() == '':
+                    # If this line only contains spaces, just leave it as is
+                    wrapped_text = line
+                else:
+                    wrapped_text = textwrap.fill(line, width=curses.COLS-1)
 
                 for wrapped_line in wrapped_text.splitlines(keepends=False):
-                    # Only add an explicit endline if the line is shorter than the width of the screen,
-                    # otherwise the screen will just wrap to the next line automatically
-                    if len(wrapped_line) < curses.COLS:
-                        wrapped_line += '\n'
-
+                    wrapped_line += '\n'
                     self._back_scroll.append(wrapped_line)
 
                 # If the original line doesn't end with an explicit newline, remove the one we added
-                if line[-1] != '\n' and self._back_scroll[-1][-1] == '\n':
+                if line[-1] != '\n':
                     self._back_scroll[-1] = self._back_scroll[-1][:-1]
 
     @property
