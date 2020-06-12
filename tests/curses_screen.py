@@ -1,7 +1,7 @@
 import curses
 import textwrap
 
-from zfun import ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, get_header, ZMachineStack
+from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, get_header, ZMachineStack
 from typing import List, Union, Tuple
 
 
@@ -61,11 +61,10 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         return True
 
-    # XXX: Fix sig so that the entire interpreter is passed in
-    def initialize(self, memory: memoryview, stack: ZMachineStack):
-        self._header = get_header(memory)
-        self._variables = ZMachineVariables(memory, self._header, stack)
-        self._obj_table = ZMachineObjectTable(memory, self._header)
+    def initialize(self, interpreter: ZMachineInterpreter):
+        self._header = interpreter.header
+        self._variables = interpreter.variables
+        self._obj_table = interpreter.object_table
 
         # Standard curses initialization
         self._std_scr.clear()

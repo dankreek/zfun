@@ -26,11 +26,10 @@ class ZMachineScreen(ABC):
     LOWER_WIN = 2
 
     @abstractmethod
-    def initialize(self, memory: memoryview, stack: ZMachineStack):
-        """ Initialize the screen and set all screen capabilities in the header
+    def initialize(self, interpreter):
+        """ Initialize the screen and set all screen capabilities in the game
 
-        :param memory: Game memory
-        :param stack: Game stack
+        :param ZMachineInterpreter interpreter: Game interpreter
         """
         pass
 

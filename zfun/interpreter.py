@@ -44,7 +44,7 @@ class ZMachineInterpreter(ABC):
     @abstractmethod
     def initialize(self):
         """ Initialize all header values for this version and call the screen's initialization. """
-        self._screen.initialize(self._memory, self._stack)
+        self._screen.initialize(self)
 
     @abstractmethod
     def terminate(self):
