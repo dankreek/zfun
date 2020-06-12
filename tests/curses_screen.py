@@ -22,7 +22,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         # Index into the back scroll indicating the last time the user was prompted for anything
         # to facilitate prompting the user for [MORE]
-        self._last_prompt_idx = 0
+        self._last_prompt_idx = -1
 
         self._obj_name: str = ''
         self._global2: int = 0
@@ -144,7 +144,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
             self._print_backscroll_line(self._back_scroll[i])
 
             # If an entire page of text has been sent since the last time a user was prompted, ask them to press a key
-            if self._back_scroll[i].endswith('\n') and ((i - self._last_prompt_idx + 2) > self._main_win_height):
+            if self._back_scroll[i].endswith('\n') and ((i - self._last_prompt_idx) >= (self._main_win_height - 1)):
                 if self._handle_more_prompt():
                     self._last_prompt_idx = i
                     self._std_scr.move(curses.LINES-1, 0)
