@@ -6,7 +6,6 @@ class MockScreen(ZMachineScreen):
 
     def __init__(self):
         self._printed_data: List[str] = []
-        self._is_status_displayed = False
 
     def initialize(self, interpreter: ZMachineInterpreter):
         interpreter.header.is_status_line_unavailable = True
@@ -20,7 +19,7 @@ class MockScreen(ZMachineScreen):
 
     @property
     def upper_window_height(self) -> int:
-        return 10
+        return 0
 
     @property
     def selected_window(self) -> int:
@@ -28,14 +27,6 @@ class MockScreen(ZMachineScreen):
 
     def print(self, text: str):
         self._printed_data.append(text)
-
-    @property
-    def is_status_displayed(self) -> bool:
-        return self._is_status_displayed
-
-    @is_status_displayed.setter
-    def is_status_displayed(self, displayed: bool):
-        self._is_status_displayed = displayed
 
     @property
     def printed_text(self) -> List[str]:

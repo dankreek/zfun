@@ -24,12 +24,6 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
         # to facilitate prompting the user for [MORE]
         self._last_prompt_idx = -1
 
-        self._obj_name: str = ''
-        self._global2: int = 0
-        self._global3: int = 0
-
-        self._is_status_displayed = False
-
         # Initialize curses
         self._std_scr = curses.initscr()
         self._screen_y, self._screen_x = self._std_scr.getmaxyx()
@@ -46,10 +40,8 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
         """
         self._std_scr.addstr('[MORE]', curses.A_BOLD)
         self._std_scr.refresh()
-
-        if self.is_status_displayed:
-            self._draw_status_line()
-            self._std_scr.refresh()
+        self._draw_status_line()
+        self._std_scr.refresh()
 
         got = -1
         while got == -1:
@@ -77,13 +69,11 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
         # Timeout while waiting for keystrokes to check for screen resizing
         self._std_scr.timeout(10)
 
+        self._std_scr.move(curses.LINES - 1, 0)
         self._std_scr.refresh()
 
         # Set header flags for this screen's capability in the z-machine
         if self._header.version == 3:
-            # This is always true for V3, should probably fix this in the interface later
-            self.is_status_displayed = True
-
             # Set flags 1
             self._header.is_status_line_unavailable = False
             self._header.is_screen_splitting_available = True
@@ -106,24 +96,17 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
         self._std_scr.refresh()
 
     @property
-    def is_status_displayed(self) -> bool:
-        return self._is_status_displayed
-
-    @is_status_displayed.setter
-    def is_status_displayed(self, status_displayed: bool):
-        self._is_status_displayed = status_displayed
-        self._draw_status_line()
-        self._std_scr.refresh()
-
-    @property
     def _main_win_height(self):
-        return curses.LINES - (1 if self.is_status_displayed else 0)
+        if self._header.version <= 3:
+            return curses.LINES - 1
+        else:
+            raise RuntimeError('> V3 not yet supported')
 
     def _print_backscroll_line(self, line: str):
         if len(line.rstrip()) == curses.COLS:
             line = line.rstrip()
-
-        self._std_scr.addstr(curses.LINES-1, 0, line)
+        cur_y, _ = self._std_scr.getyx()
+        self._std_scr.addstr(cur_y, 0, line)
 
     def print(self, text: str):
         orig_back_scroll_size = len(self._back_scroll)
@@ -158,7 +141,8 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         self._std_scr.refresh()
 
-        if self._is_status_displayed:
+    def update_status(self):
+        if self._header.version <= 3:
             self._draw_status_line()
             self._std_scr.refresh()
 
@@ -169,10 +153,9 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
     def _redraw_screen(self):
         """ Redraw the contents of the screen and refresh """
         self._std_scr.erase()
-
         self._redraw_main_win()
 
-        if self.is_status_displayed:
+        if self._header.version <= 3:
             self._draw_status_line()
 
     def _draw_status_line(self):
@@ -183,8 +166,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
             score = self._variables.global_val(1).int
             turns = self._variables.global_val(2).unsigned_int
 
-            status = f'Score: {score}/{turns}'
-            status += ' ' * (19 - len(status))
+            status = f'Score: {score:<7} Turns: {turns:<7}'
         else:
             hours = self._variables.global_val(1).unsigned_int
             mins = self._variables.global_val(2).unsigned_int
@@ -202,9 +184,10 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
 
         self._std_scr.move(0, 0)
 
-        if self._variables.global_val(0).unsigned_int > 0:
+        obj_num = self._variables.global_val(0).unsigned_int
+        if obj_num > 0:
             obj_name_len = curses.COLS - len(status) - 1
-            obj_name = self._obj_table.object(self._variables.global_val(0).unsigned_int).properties.name
+            obj_name = ' ' + self._obj_table.object(obj_num).properties.name
             if len(obj_name) > obj_name_len:
                 # truncate object name if too long
                 obj_name = obj_name[:obj_name_len-3] + '... '
@@ -284,10 +267,11 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
         raise NotImplemented('No upper window functionality in V3')
 
     def read_string(self, max_len: int) -> str:
+        init_y, init_x = self._std_scr.getyx()
+        max_chars_typed = 0
         user_input = ''
 
-        if self.is_status_displayed:
-            self._draw_status_line()
+        self._draw_status_line()
 
         key_pressed = -1
         while key_pressed != ord('\n'):
@@ -322,9 +306,12 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
                 else:
                     user_input += chr(key_pressed)
                     self._std_scr.addch(key_pressed)
+                    max_chars_typed = max(len(user_input), max_len)
 
         # Add the user input to the print history
         # (in case the screen gets resized or a viewable back scroll is implemented later)
+        init_y -= max_chars_typed // curses.COLS
+        self._std_scr.move(init_y, init_x)
         self.print(user_input + '\n')
 
         # Reset the [MORE] prompt index since the user has been prompted for input
