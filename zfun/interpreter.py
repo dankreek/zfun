@@ -723,7 +723,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         self._stack.pop()
 
     def _opcode__show_status(self):
-        self._screen.is_status_displayed = True
+        self._screen.update_status()
 
     def _opcode__verify(self):
         # Technically supposed to verify the integrity of the game file, but not doing it

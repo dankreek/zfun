@@ -5,7 +5,7 @@ from os import path
 from typing import Tuple
 
 from mocks import MockInput, MockScreen
-from zfun import ZCodeHeader, ZMachineInterpreter, ZMachineInterpreterV3, get_header, ZMachineVariables, ZMachineObjectTable, ZMachineStack, ZMachineRuntimeException
+from zfun import ZCodeHeader, ZMachineInterpreter, ZMachineInterpreterV3, get_header, ZMachineVariables, ZMachineObjectTable, ZMachineStack, ZMachineExitException
 
 
 def compare_machine_state(interpreter: ZMachineInterpreter, state_data_dir: str, num_objects: int = 250) -> dict:
@@ -131,7 +131,7 @@ def v3_header_and_data(zork1_v3_data: memoryview) -> Tuple[ZCodeHeader, memoryvi
 def test_playing_some_zork_v3(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
     header, memory = v3_header_and_data
     screen = MockScreen()
-    input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'w'])
+    input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'w', 'q', 'y'])
 
     interpreter = ZMachineInterpreterV3(header, memory, screen, input)
     interpreter.initialize()
@@ -139,9 +139,9 @@ def test_playing_some_zork_v3(v3_header_and_data: Tuple[ZCodeHeader, memoryview]
     try:
         interpreter.run()
         raise AssertionError('End of input should have occurred.')
-    except ZMachineRuntimeException as e:
+    except ZMachineExitException:
         # check message
-        assert interpreter.pc == 0x5910
+        assert interpreter.pc == 0x6e08
         text = ''.join(screen.printed_text)
         assert text == """ZORK I: The Great Underground Empire
 Copyright (c) 1981, 1982, 1983 Infocom, Inc. All rights reserved.
@@ -164,7 +164,9 @@ ZORK is a game of adventure, danger, and low cunning. In it you will explore som
 >Forest
 This is a forest, with trees in all directions. To the east, there appears to be sunlight.
 
->"""
+>Your score is 0 (total of 350 points), in 4 moves.
+This gives you the rank of Adventurer.
+Do you wish to leave the game? (Y is affirmative): >"""
 
 
 @pytest.mark.skip('only useful with data from other z-machine')
