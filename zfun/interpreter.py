@@ -429,7 +429,7 @@ class ZMachineInterpreter(ABC):
         flags = self._operand_val(1)
 
         if type(flags) == ZByte:
-            flags = flags.pad(False)
+            flags = flags.pad()
 
         self._handle_branch((bitmap & flags.unsigned_int) == flags, predicate_type, offset)
 
@@ -544,10 +544,10 @@ class ZMachineInterpreter(ABC):
         b = self._operand_val(1)
 
         if type(a) == ZByte:
-            a = a.pad(is_signed=False)
+            a = a.pad()
 
         if type(b) == ZByte:
-            b = b.pad(is_signed=False)
+            b = b.pad()
 
         self._variables.set(res_var, a + b)
 
@@ -557,10 +557,10 @@ class ZMachineInterpreter(ABC):
         b = self._operand_val(1)
 
         if type(a) == ZByte:
-            a = a.pad(is_signed=False)
+            a = a.pad()
 
         if type(b) == ZByte:
-            b = b.pad(is_signed=False)
+            b = b.pad()
 
         self._variables.set(res_var, a - b)
 
@@ -570,10 +570,10 @@ class ZMachineInterpreter(ABC):
         b = self._operand_val(1)
 
         if type(a) == ZByte:
-            a = a.pad(is_signed=False)
+            a = a.pad()
 
         if type(b) == ZByte:
-            b = b.pad(is_signed=False)
+            b = b.pad()
 
         self._variables.set(res_var, a * b)
 
@@ -583,10 +583,10 @@ class ZMachineInterpreter(ABC):
         b = self._operand_val(1)
 
         if type(a) == ZByte:
-            a = a.pad(is_signed=False)
+            a = a.pad()
 
         if type(b) == ZByte:
-            b = b.pad(is_signed=False)
+            b = b.pad()
 
         self._variables.set(res_var, a // b)
 
@@ -596,10 +596,10 @@ class ZMachineInterpreter(ABC):
         b = self._operand_val(1)
 
         if type(a) == ZByte:
-            a = a.pad(is_signed=False)
+            a = a.pad()
 
         if type(b) == ZByte:
-            b = b.pad(is_signed=False)
+            b = b.pad()
 
         self._variables.set(res_var, a % b)
 

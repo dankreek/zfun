@@ -63,7 +63,7 @@ class ZMachineVariables:
         var_num_int = var_num.unsigned_int
 
         if type(val) == ZByte:
-            val = val.pad(is_signed=False)
+            val = val.pad()
 
         if var_num_int == 0:
             # Replace the value at the top of the stack

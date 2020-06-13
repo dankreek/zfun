@@ -34,7 +34,7 @@ class ZMachineStack:
     def push(self, x: ZData):
         assert issubclass(type(x), ZData), 'can only push ZData types on to the stack'
         if type(x) == ZByte:
-            x = x.pad(is_signed=False)
+            x = x.pad()
 
         self._frames[-1].stack_data.append(x)
 
@@ -92,7 +92,7 @@ class ZMachineStack:
 
         for i in range(len(local_var_vals)):
             if len(local_var_vals[i]) == 1:
-                val = local_var_vals[i].pad(False)
+                val = local_var_vals[i].pad()
             else:
                 val = local_var_vals[i]
 

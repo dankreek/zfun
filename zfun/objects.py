@@ -140,7 +140,7 @@ class PropertiesTable(ABC):
             byte_val = ZByte.from_int(value.int)
             byte_val.write(self._memory, value_address)
         elif (prop_info.size == 2) and (type(value) == ZByte):
-            word_val = value.pad()
+            word_val = value.pad(is_signed=True)
             word_val.write(self._memory, value_address)
         elif prop_info.size == len(value):
             value.write(self._memory, value_address)
