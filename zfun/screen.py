@@ -26,11 +26,10 @@ class ZMachineScreen(ABC):
     LOWER_WIN = 2
 
     @abstractmethod
-    def initialize(self, memory: memoryview, stack: ZMachineStack):
-        """ Initialize the screen and set all screen capabilities in the header
+    def initialize(self, interpreter):
+        """ Initialize the screen and set all screen capabilities in the game
 
-        :param memory: Game memory
-        :param stack: Game stack
+        :param ZMachineInterpreter interpreter: Game interpreter
         """
         pass
 
@@ -76,15 +75,11 @@ class ZMachineScreen(ABC):
         """
         pass
 
-    @property
-    @abstractmethod
-    def is_status_displayed(self) -> bool:
-        """ Should the status bar be displayed? """
-        pass
+    def update_status(self):
+        """ Manually update the status line.
 
-    @is_status_displayed.setter
-    @abstractmethod
-    def is_status_displayed(self, display_status: bool):
+        Note: This is only for V3 interpreters and in most cases probably does't need to be overridden.
+        """
         pass
 
 

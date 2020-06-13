@@ -44,7 +44,7 @@ class ZMachineInterpreter(ABC):
     @abstractmethod
     def initialize(self):
         """ Initialize all header values for this version and call the screen's initialization. """
-        self._screen.initialize(self._memory, self._stack)
+        self._screen.initialize(self)
 
     @abstractmethod
     def terminate(self):
@@ -506,14 +506,13 @@ class ZMachineInterpreter(ABC):
 
         obj = self._obj_table.object(obj_num)
         # TODO: This syntax is a bit clunky, should probably refactor the properties table interface
-        prop_addr = obj.properties.property_value_address(
-            obj.properties.own_property_address(prop_num)
-        )
+        prop_address = obj.properties.own_property_address(prop_num)
 
-        if prop_addr is None:
-            prop_addr = 0
+        if prop_address is not None:
+            self._variables.set(res_var, ZWord.from_unsigned_int(obj.properties.property_value_address(prop_address)))
+        else:
+            self._variables.set(res_var, ZWord.from_int(0))
 
-        self._variables.set(res_var, ZWord.from_unsigned_int(prop_addr))
 
     def _opcode__get_next_prop(self):
         res_var = self._read_res_var()
@@ -534,7 +533,10 @@ class ZMachineInterpreter(ABC):
             next_prop_num = 0
         else:
             next_prop = self._obj_table.property_at(prop_info.next_prop_address)
-            next_prop_num = next_prop.number
+            if next_prop is None:
+                next_prop_num = 0
+            else:
+                next_prop_num = next_prop.number
 
         self._variables.set(res_var, ZWord.from_unsigned_int(next_prop_num))
 
@@ -721,7 +723,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         self._stack.pop()
 
     def _opcode__show_status(self):
-        self._screen.is_status_displayed = True
+        self._screen.update_status()
 
     def _opcode__verify(self):
         # Technically supposed to verify the integrity of the game file, but not doing it
@@ -763,7 +765,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         parse_buffer_address = self._operand_val(1).unsigned_int
 
         # The max number of characters to read is in the first byte of the text buffer
-        max_chars = ZByte.read(self._memory, text_buffer_address)
+        max_chars = ZByte.read(self._memory, text_buffer_address).unsigned_int
         text = self._keyboard.read_string(max_chars)
 
         if text_buffer_address >= self._header.static_memory_address:

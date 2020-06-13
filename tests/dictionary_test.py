@@ -33,21 +33,6 @@ def test_word_lookup_v3_leaves_bug(zork_v3_dict: ZMachineDictionary):
     assert word_addr == zork_v3_dict.entry_addr(348)
 
 
-@pytest.mark.skip('it seems all words are properly encoded')
-def test_all_word_encoding(zork_v3_dict: ZMachineDictionary):
-    wrong_words = dict()
-    for i in range(1, zork_v3_dict.number_of_entries+1):
-        addr = zork_v3_dict.entry_addr(i)
-        entry = zork_v3_dict.entry_at(addr)
-        expected_z_string = z_string(entry.text, zork_v3_dict.encoded_text_len)
-        if entry.encoded_text != expected_z_string:
-            wrong_words[i] = dict(text=entry.text,
-                                  found_z_string=entry.encoded_text.hex(),
-                                  expected_z_string=expected_z_string.hex())
-
-    assert wrong_words == {}
-
-
 word_lookup_test_cases_v3 = [
     ('zzmgck', 697, 'Finds last word'),
     ('zorkmi', 696, 'Second-to-last word'),
