@@ -314,13 +314,21 @@ class ZMachineInterpreter(ABC):
 
     def _opcode__get_prop_len(self):
         res_var = self._read_res_var()
-        prop_addr = self._operand_val(0)
+        prop_addr = self._operand_val(0).unsigned_int
 
-        if prop_addr.int == 0:
+        # TODO: Put this logic in the object table class?
+        if prop_addr == 0:
             prop_size = 0
         else:
-            # XXX: This still looks really weird
-            prop_size = self._obj_table.property_at(prop_addr.unsigned_int - 1).size
+            if self._header.version <= 3:
+                prop_addr -= 1
+            else:
+                if self._memory[prop_addr] & 128:
+                    prop_addr -= 1
+                else:
+                    prop_addr -= 2
+
+            prop_size = self._obj_table.property_at(prop_addr).size
 
         self._variables.set(res_var, ZWord.from_unsigned_int(prop_size))
 
