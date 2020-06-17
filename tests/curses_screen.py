@@ -187,7 +187,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
         obj_num = self._variables.global_val(0).unsigned_int
         if obj_num > 0:
             obj_name_len = curses.COLS - len(status) - 1
-            obj_name = ' ' + self._obj_table.object(obj_num).properties.name
+            obj_name = ' ' + self._obj_table.object(obj_num).name
             if len(obj_name) > obj_name_len:
                 # truncate object name if too long
                 obj_name = obj_name[:obj_name_len-3] + '... '

@@ -84,27 +84,27 @@ prop_name_v3_cases = [(4, 'cretin'), (82, None), (180, 'West of House')]
 
 @pytest.mark.parametrize('obj_num,expected_name', prop_name_v3_cases)
 def test_object_name_prop_v3(obj_num: int, expected_name: str, zork_v3_obj_table: ZMachineObjectTable):
-    assert zork_v3_obj_table.object(obj_num).properties.name == expected_name
+    assert zork_v3_obj_table.object(obj_num).name == expected_name
 
 
 prop_name_v5_cases = [(46, 'cretin'), (41, None), (68, 'West of House')]
 
 @pytest.mark.parametrize('obj_num,expected_name', prop_name_v5_cases)
 def test_object_name_prop_v5(obj_num: int, expected_name: str, zork_v5_obj_table: ZMachineObjectTable):
-    assert zork_v5_obj_table.object(obj_num).properties.name == expected_name
+    assert zork_v5_obj_table.object(obj_num).name == expected_name
 
 
 def test_first_own_property_v3(zork_v3_obj_table: ZMachineObjectTable):
-    door = zork_v3_obj_table.object(18)
-    first_prop = door.properties.first_own_property()
-    assert first_prop.number == 31
+    smelly_room = zork_v3_obj_table.object(22)
+    first_prop = next(iter(smelly_room.properties))
+    assert first_prop.number == 28
 
 
 def test_own_properties_v3(zork_v3_obj_table: ZMachineObjectTable):
     door = zork_v3_obj_table.object(181)
 
     # Get own properties
-    own_properties = door.properties.own_properties
+    own_properties = door.properties.all()
     assert 18 in own_properties
     assert own_properties[18] == ZWord(b'\x3f\x9d')
 
@@ -114,32 +114,32 @@ def test_own_properties_v3(zork_v3_obj_table: ZMachineObjectTable):
     assert 16 in own_properties
     assert own_properties[16] == ZWord(b'\xc9\xca')
 
-    assert own_properties[18] == door.properties.own_property_val(18)
-    assert own_properties[17] == door.properties.own_property_val(17)
-    assert own_properties[16] == door.properties.own_property_val(16)
+    assert own_properties[18] == door.properties.get(18).value
+    assert own_properties[17] == door.properties.get(17).value
+    assert own_properties[16] == door.properties.get(16).value
 
-    assert own_properties[18] == door.properties.property_val(18)
-    assert own_properties[17] == door.properties.property_val(17)
-    assert own_properties[16] == door.properties.property_val(16)
+    assert own_properties[18] == door.properties.value(18)
+    assert own_properties[17] == door.properties.value(17)
+    assert own_properties[16] == door.properties.value(16)
 
 
 def test_default_properties_v3(zork_v3_obj_table: ZMachineObjectTable):
     door = zork_v3_obj_table.object(181)
 
     # Get default properties and spot check
-    default_1 = door.properties.default_val(1)
-    default_31 = door.properties.default_val(31)
+    default_1 = door.properties.default_value(1)
+    default_31 = door.properties.default_value(31)
 
     # ensure default falls through if own property isn't defined
-    assert default_1 == door.properties.property_val(1), 'default property 1 should have been returned'
-    assert default_31 == door.properties.property_val(31), 'default property 31 should have been returned'
+    assert default_1 == door.properties.value_or_default(1), 'default property 1 should have been returned'
+    assert default_31 == door.properties.value_or_default(31), 'default property 31 should have been returned'
 
 
 def test_own_properties_v5(zork_v5_obj_table: ZMachineObjectTable):
     door = zork_v5_obj_table.object(127)
 
     # Get own properties
-    own_properties = door.properties.own_properties
+    own_properties = door.properties.all()
     assert 46 in own_properties
     assert own_properties[46] == ZWord(b'\x4d\xff')
 
@@ -149,25 +149,21 @@ def test_own_properties_v5(zork_v5_obj_table: ZMachineObjectTable):
     assert 44 in own_properties
     assert own_properties[44].hex() == '50364a60'
 
-    assert own_properties[46] == door.properties.own_property_val(46)
-    assert own_properties[45] == door.properties.own_property_val(45)
-    assert own_properties[44] == door.properties.own_property_val(44)
-
-    assert own_properties[46] == door.properties.property_val(46)
-    assert own_properties[45] == door.properties.property_val(45)
-    assert own_properties[44] == door.properties.property_val(44)
+    assert own_properties[46] == door.properties.value(46)
+    assert own_properties[45] == door.properties.value(45)
+    assert own_properties[44] == door.properties.value(44)
 
 
 def test_default_properties_v5(zork_v5_obj_table: ZMachineObjectTable):
     door = zork_v5_obj_table.object(127)
 
     # Get default properties and spot check
-    default_1 = door.properties.default_val(1)
-    default_63 = door.properties.default_val(63)
+    default_1 = door.properties.default_value(1)
+    default_63 = door.properties.default_value(63)
 
     # ensure default falls through if own property isn't defined
-    assert default_1 == door.properties.property_val(1), 'default property 1 should have been returned'
-    assert default_63 == door.properties.property_val(63), 'default property 63 should have been returned'
+    assert default_1 == door.properties.value_or_default(1), 'default property 1 should have been returned'
+    assert default_63 == door.properties.value_or_default(63), 'default property 63 should have been returned'
 
 
 def test_remove_obj_from_parent_first_child_v3(zork_v3_obj_table: ZMachineObjectTable):
@@ -291,29 +287,30 @@ def test_set_own_property_v3(zork_v3_obj_table: ZMachineObjectTable):
     pair_of_hands = zork_v3_obj_table.object(1)
 
     # Set with a single byte
-    pair_of_hands.properties.set_own_property(16, ZByte(b'\x42'))
-    assert ZByte(b'\x42') == pair_of_hands.properties.own_property_val(16), \
+    pair_of_hands.properties.set(16, ZByte(b'\x42'))
+    assert ZByte(b'\x42') == pair_of_hands.properties.value(16), \
         'a single byte property is set with a single byte value'
 
     # Set with two bytes
-    pair_of_hands.properties.set_own_property(16, ZWord.from_int(-6))
-    assert ZByte.from_int(-6) == pair_of_hands.properties.own_property_val(16), \
+    pair_of_hands.properties.set(16, ZWord.from_int(-6))
+    assert ZByte.from_int(-6) == pair_of_hands.properties.value(16), \
         'a single byte property is set with a two byte value'
 
     # Property #18 is a two-byte property
     zorkmid = zork_v3_obj_table.object(2)
 
-    zorkmid.properties.set_own_property(18, ZWord(b'\x12\x34'))
-    assert ZWord(b'\x12\x34') == zorkmid.properties.own_property_val(18)
+    zorkmid.properties.set(18, ZWord(b'\x12\x34'))
+    assert ZWord(b'\x12\x34') == zorkmid.properties.value(18)
 
 
 def test_set_own_property_v5(zork_v5_obj_table: ZMachineObjectTable):
     # Property #46 is a two-byte property
     zorkmid = zork_v5_obj_table.object(122)
 
-    zorkmid.properties.set_own_property(46, ZWord(b'\x12\x34'))
-    assert ZWord(b'\x12\x34') == zorkmid.properties.own_property_val(46)
+    zorkmid.properties.set(46, ZWord(b'\x12\x34'))
+    assert ZWord(b'\x12\x34') == zorkmid.properties.value(46)
 
     you = zork_v5_obj_table.object(21)
     with pytest.raises(ZMachineIllegalOperation, match='size 8 with a value of size '):
-        you.properties.set_own_property(46, ZWord(b'\x12\x34'))
+        you.properties.set(46, ZWord(b'\x12\x34'))
+

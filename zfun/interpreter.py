@@ -7,7 +7,7 @@ from .dictionary import ZMachineDictionary
 from .exc import ZMachineIllegalOperation, ZMachineException
 from .header import ZCodeHeader
 from .input import ZMachineInput
-from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOperandTypes
+from .opcodes import ZMachineOpcodeParserV3, ZMachineOperandTypes
 from .objects import ZMachineObjectTable
 from .screen import ZMachineScreen
 from .stack import ZMachineStack
@@ -314,12 +314,23 @@ class ZMachineInterpreter(ABC):
 
     def _opcode__get_prop_len(self):
         res_var = self._read_res_var()
+        prop_addr = self._operand_val(0).unsigned_int
 
-        prop_addr = self._operand_val(0)
-        # XXX: this instruction provides the address of the property value, not the length header
-        # XXX: refactor object table code
-        prop_data = self._obj_table.property_at(prop_addr.unsigned_int - 1)
-        self._variables.set(res_var, ZWord.from_unsigned_int(prop_data.size))
+        # TODO: Put this logic in the object table class?
+        if prop_addr == 0:
+            prop_size = 0
+        else:
+            if self._header.version <= 3:
+                prop_addr -= 1
+            else:
+                if self._memory[prop_addr] & 128:
+                    prop_addr -= 1
+                else:
+                    prop_addr -= 2
+
+            prop_size = self._obj_table.property_at(prop_addr).size
+
+        self._variables.set(res_var, ZWord.from_unsigned_int(prop_size))
 
     def _opcode__inc(self):
         var_num = ZByte(self._operand_val(0))
@@ -343,7 +354,7 @@ class ZMachineInterpreter(ABC):
     def _opcode__print_obj(self):
         obj_num = self._operand_val(0)
         obj = self._obj_table.object(obj_num.unsigned_int)
-        self._screen.print(obj.properties.name)
+        self._screen.print(obj.name)
 
     def _opcode__ret(self):
         ret_val = self._operand_val(0)
@@ -496,7 +507,7 @@ class ZMachineInterpreter(ABC):
         obj_num = self._operand_val(0).unsigned_int
         prop_num = self._operand_val(1).unsigned_int
         obj = self._obj_table.object(obj_num)
-        prop_val = obj.properties.property_val(prop_num)
+        prop_val = obj.properties.value_or_default(prop_num)
         self._variables.set(res_var, prop_val)
 
     def _opcode__get_prop_addr(self):
@@ -505,14 +516,12 @@ class ZMachineInterpreter(ABC):
         prop_num = self._operand_val(1).unsigned_int
 
         obj = self._obj_table.object(obj_num)
-        # TODO: This syntax is a bit clunky, should probably refactor the properties table interface
-        prop_address = obj.properties.own_property_address(prop_num)
+        prop_address = obj.properties.get(prop_num).value_address
 
         if prop_address is not None:
-            self._variables.set(res_var, ZWord.from_unsigned_int(obj.properties.property_value_address(prop_address)))
+            self._variables.set(res_var, ZWord.from_unsigned_int(prop_address))
         else:
             self._variables.set(res_var, ZWord.from_int(0))
-
 
     def _opcode__get_next_prop(self):
         res_var = self._read_res_var()
@@ -522,21 +531,19 @@ class ZMachineInterpreter(ABC):
         obj = self._obj_table.object(obj_num)
 
         if prop_num == 0:
-            prop_info = obj.properties.first_own_property()
+            prop_info = obj.properties.first_property()
         else:
-            prop_info = obj.properties.own_property(prop_num)
+            prop_info = obj.properties.get(prop_num)
 
         if prop_info is None:
             raise ZMachineIllegalOperation(f'property #{prop_num} does not exist for object #{obj_num}')
 
-        if prop_info.next_prop_address is None:
+        next_prop = self._obj_table.property_at(prop_info.next_property_address)
+
+        if next_prop is None:
             next_prop_num = 0
         else:
-            next_prop = self._obj_table.property_at(prop_info.next_prop_address)
-            if next_prop is None:
-                next_prop_num = 0
-            else:
-                next_prop_num = next_prop.number
+            next_prop_num = next_prop.number
 
         self._variables.set(res_var, ZWord.from_unsigned_int(next_prop_num))
 
@@ -640,7 +647,7 @@ class ZMachineInterpreter(ABC):
         value = self._operand_val(2)
 
         obj = self._obj_table.object(obj_num)
-        obj.properties.set_own_property(prop_num, value)
+        obj.properties.set(prop_num, value)
 
     def _opcode__print_char(self):
         char = self._operand_val(0)

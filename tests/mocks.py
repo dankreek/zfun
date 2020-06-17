@@ -8,7 +8,7 @@ class MockScreen(ZMachineScreen):
         self._printed_data: List[str] = []
 
     def initialize(self, interpreter: ZMachineInterpreter):
-        interpreter.header.is_status_line_unavailable = True
+        interpreter._memory[1] = 0x20
 
     def terminate(self):
         pass

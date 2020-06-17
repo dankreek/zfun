@@ -65,9 +65,9 @@ def compare_machine_state(interpreter: ZMachineInterpreter, state_data_dir: str,
             obj_diffs['attributes'] = dict(expected=comp_obj.attributes,
                                            found=obj.attributes)
 
-        if comp_obj.properties.own_properties != obj.properties.own_properties:
-            obj_diffs['properties'] = dict(expected=comp_obj.properties.own_properties,
-                                           found=obj.properties.own_properties)
+        if comp_obj.properties.all() != obj.properties.all():
+            obj_diffs['properties'] = dict(expected=comp_obj.properties.all(),
+                                           found=obj.properties.all())
 
         if obj_diffs:
             diffs.setdefault('objects', dict())
@@ -181,7 +181,7 @@ def test_compare_with_other_zmachine(v3_header_and_data: Tuple[ZCodeHeader, memo
     while True:
         interpreter.step()
 
-        if interpreter.step_count > 2940:
+        if interpreter.step_count > 2947:
             diffs = compare_machine_state(interpreter, '../../theinternetftw/xyppy/steps')
             if diffs != {}:
                 # Looks weird, but useful for setting a breakpoint here
