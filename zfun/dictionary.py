@@ -1,9 +1,8 @@
-import math
 from typing import List, Union, NamedTuple
 
 from .z_string import z_string_to_str, z_string
-from .util import read_word
 from .header import ZCodeHeader
+from .data_structures import ZWord
 
 
 class DictionaryEntry(NamedTuple):
@@ -53,7 +52,7 @@ class ZMachineDictionary:
     @property
     def number_of_entries(self) -> int:
         """ Number of dictionary entries """
-        return read_word(self._memory, self._addr + 1 + self._separators_len + 1)
+        return ZWord(self._memory, self._addr + 1 + self._separators_len + 1).unsigned_int
 
     @property
     def encoded_text_len(self) -> int:

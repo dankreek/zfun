@@ -74,9 +74,9 @@ class ObjectProperty(ABC):
         :return: A ZWord or ZByte if the size if 1 or 2, or a bytes string if longer
         """
         if self.size == 1:
-            return ZByte.read(self._memory, self.value_address)
+            return ZByte(self._memory, self.value_address)
         elif self.size == 2:
-            return ZWord.read(self._memory, self.value_address)
+            return ZWord(self._memory, self.value_address)
         else:
             return bytes(self._memory[self.value_address:self.value_address + self.size])
 
@@ -247,7 +247,7 @@ class ObjectProperties(ABC):
         else:
             assert 0 <= prop_num <= 63, 'version 4+ property numbers range from 0-63'
 
-        return ZWord.read(self._memory, self._default_vals_addr + (2 * (prop_num - 1)))
+        return ZWord(self._memory, self._default_vals_addr + (2 * (prop_num - 1)))
 
 
 class PropertiesTable(ABC):
@@ -408,7 +408,7 @@ class PropertiesTable(ABC):
         """
         # each default is a word so the offset is 2 * prop_num
         address = self._default_properties_address + ((prop_num-1) * 2)
-        return ZWord.read(self._memory, address)
+        return ZWord(self._memory, address)
 
     @staticmethod
     @abstractmethod
@@ -579,7 +579,7 @@ class ZMachineObjectV1(ZMachineObject):
 
     @property
     def properties_table_address(self) -> int:
-        return ZWord.read(self._memory, self._addr + 7).unsigned_int
+        return ZWord(self._memory, self._addr + 7).unsigned_int
 
 
 class ZMachineObjectV4(ZMachineObject):
@@ -594,7 +594,7 @@ class ZMachineObjectV4(ZMachineObject):
 
     @property
     def parent(self) -> int:
-        return ZWord.read(self._memory, self._addr + 6).unsigned_int
+        return ZWord(self._memory, self._addr + 6).unsigned_int
 
     @parent.setter
     def parent(self, obj_num: int):
@@ -602,7 +602,7 @@ class ZMachineObjectV4(ZMachineObject):
 
     @property
     def sibling(self) -> int:
-        return ZWord.read(self._memory, self._addr + 8).unsigned_int
+        return ZWord(self._memory, self._addr + 8).unsigned_int
 
     @sibling.setter
     def sibling(self, obj_num: int):
@@ -610,7 +610,7 @@ class ZMachineObjectV4(ZMachineObject):
 
     @property
     def child(self) -> int:
-        return ZWord.read(self._memory, self._addr + 10).unsigned_int
+        return ZWord(self._memory, self._addr + 10).unsigned_int
 
     @child.setter
     def child(self, obj_num: int):
@@ -628,7 +628,7 @@ class ZMachineObjectV4(ZMachineObject):
 
     @property
     def properties_table_address(self) -> int:
-        return ZWord.read(self._memory, self._addr + 12).unsigned_int
+        return ZWord(self._memory, self._addr + 12).unsigned_int
 
 
 class ZMachineObjectTable(ABC):

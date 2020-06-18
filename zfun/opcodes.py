@@ -144,10 +144,10 @@ class ZMachineOpcodeParser(ABC):
         addr = operands_addr
         for op_type in operand_types:
             if op_type in [ZMachineOperandTypes.SMALL_CONSTANT, ZMachineOperandTypes.VARIABLE]:
-                operands.append(ZByte.read(self._memory, addr))
+                operands.append(ZByte(self._memory, addr))
                 addr += 1
             elif op_type == ZMachineOperandTypes.LARGE_CONSTANT:
-                operands.append(ZWord.read(self._memory, addr))
+                operands.append(ZWord(self._memory, addr))
                 addr += 2
 
         return tuple(operands), addr

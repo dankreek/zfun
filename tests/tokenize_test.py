@@ -1,7 +1,7 @@
 from typing import NamedTuple
 
-from zfun import ZMachineDictionary, tokenize
-from zfun.util import write_asciiz, read_word
+from zfun import ZMachineDictionary, tokenize, ZWord
+from zfun.util import write_asciiz
 
 
 class TokenBlock(NamedTuple):
@@ -14,7 +14,7 @@ def read_token_block(memory: memoryview, parse_buf: int, token_num: int):
     block_offset = parse_buf + 2 + (token_num * 4)
 
     return TokenBlock(
-        read_word(memory, block_offset),
+        ZWord(memory, block_offset).unsigned_int,
         memory[block_offset + 2],
         memory[block_offset + 3]
     )

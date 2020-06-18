@@ -159,7 +159,7 @@ class ZMachineInterpreter(ABC):
 
     def _read_res_var(self) -> ZByte:
         """ Read a single byte at the PC, advance the PC and return the result variable number. """
-        res_var = ZByte.read(self._memory, int(self._pc))
+        res_var = ZByte(self._memory, int(self._pc))
         self._pc += 1
         return res_var
 
@@ -491,7 +491,7 @@ class ZMachineInterpreter(ABC):
         arr_addr = self._operand_val(0).unsigned_int
         word_idx = self._operand_val(1).unsigned_int
         word_addr = arr_addr + (word_idx * 2)
-        ret_word = ZWord.read(self._memory, word_addr)
+        ret_word = ZWord(self._memory, word_addr)
         self._variables.set(res_var, ret_word)
 
     def _opcode__loadb(self):
@@ -499,7 +499,7 @@ class ZMachineInterpreter(ABC):
         arr_addr = self._operand_val(0).unsigned_int
         byte_idx = self._operand_val(1).unsigned_int
         byte_addr = arr_addr + byte_idx
-        ret_byte = ZByte.read(self._memory, byte_addr)
+        ret_byte = ZByte(self._memory, byte_addr)
         self._variables.set(res_var, ret_byte)
 
     def _opcode__get_prop(self):
@@ -747,7 +747,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
         # Each local variable's initial value is stored in the words following the word count byte
         initial_local_var_values = [
-            ZWord.read(self._memory, routine_address + 1 + (i * 2))
+            ZWord(self._memory, routine_address + 1 + (i * 2))
             for i in range(local_vars_count)
         ]
 
@@ -772,7 +772,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         parse_buffer_address = self._operand_val(1).unsigned_int
 
         # The max number of characters to read is in the first byte of the text buffer
-        max_chars = ZByte.read(self._memory, text_buffer_address).unsigned_int
+        max_chars = ZByte(self._memory, text_buffer_address).unsigned_int
         text = self._keyboard.read_string(max_chars)
 
         if text_buffer_address >= self._header.static_memory_address:

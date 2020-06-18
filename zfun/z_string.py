@@ -4,7 +4,8 @@ from enum import Enum
 
 from typing import List, Tuple
 
-from .util import is_bit_set, read_word
+from .util import is_bit_set
+from .data_structures import ZWord
 from .exc import ZMachineException
 
 
@@ -165,7 +166,7 @@ def abbreviation_to_ascii(memory, abbrev_table_addr: int, abbrev_index: int) -> 
     :return: List of ascii characters for the abbreviation
     """
     offset = abbrev_table_addr + (abbrev_index * 2)
-    word_ptr = read_word(memory, offset) * 2
+    word_ptr = ZWord(memory, offset).unsigned_int * 2
     ascii_list, _ = z_string_to_ascii(memory, word_ptr)
     return ascii_list
 

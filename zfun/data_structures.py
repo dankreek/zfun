@@ -85,17 +85,6 @@ class ZData(ABC):
 
     @staticmethod
     @abstractmethod
-    def read(memory: Union[bytes, memoryview], address: int):
-        """ Read ZData from memory at the provided address.
-
-        :param memory: Memory to read from
-        :param address: Address to read from
-        :return: ZData of memory at given address.
-        """
-        pass
-
-    @staticmethod
-    @abstractmethod
     def from_int(value: int):
         """ Return ZData from a signed int
 
@@ -319,10 +308,6 @@ class ZByte(ZData):
     def write(self, memory: memoryview, address: int):
         memory[address:address+1] = self._value
 
-    @staticmethod
-    def read(memory: Union[bytes, memoryview], address: int):
-        return ZByte(memory[address:address+1])
-
     def is_bit_set(self, bit_number: int) -> bool:
         if 0 < bit_number > 7:
             raise ValueError('Can only test bits 0-8 in a ZByte')
@@ -461,10 +446,6 @@ class ZWord(ZData):
 
     def write(self, memory: memoryview, address: int):
         memory[address:address+2] = self._value
-
-    @staticmethod
-    def read(memory: Union[bytes, memoryview], address: int):
-        return ZWord(memory[address:address+2])
 
     def is_bit_set(self, bit_number: int) -> bool:
         if 0 < bit_number > 15:
