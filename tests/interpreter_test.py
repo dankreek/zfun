@@ -87,35 +87,35 @@ def compare_machine_state(interpreter: ZMachineInterpreter, state_data_dir: str,
                            found=hex(int(interpreter.pc)))
 
     # Local vars
-    if len(state['local_vars']) != len(interpreter.stack.frame.local_vars):
+    if len(state['local_vars']) != len(interpreter.stack.routine_frame.local_vars):
         diffs['num_local_vars'] = dict(expected=len(state['local_vars']))
     else:
         for i in range(len(state['local_vars'])):
             expected = state['local_vars'][i]
-            found = '0x' + interpreter.stack.frame.local_vars[i].hex()
+            found = '0x' + interpreter.stack.routine_frame.local_vars[i].hex()
             if expected != found:
                 diffs.setdefault('local_vars', {})
                 diffs['local_vars'][i] = dict(expected=expected, found=found)
 
     # Routine stack
-    if len(state['stack']) != len(interpreter.stack.frame.stack_data):
+    if len(state['stack']) != len(interpreter.stack.routine_frame.stack_data):
         diffs['routine_stack_size'] = dict(expected=len(state['stack']),
-                                           found=len(interpreter.stack.frame.stack_data))
+                                           found=len(interpreter.stack.routine_frame.stack_data))
     else:
         for i in range(len(state['stack'])):
             expected = state['stack'][i]
-            found = '0x' + interpreter.stack.frame.stack_data[i].hex()
+            found = '0x' + interpreter.stack.routine_frame.stack_data[i].hex()
 
             if expected != found:
                 diffs.setdefault('routine_stack', {})
                 diffs['routine_stack'][i] = dict(expected=expected, found=found)
 
     # ret var
-    found_res_var = '0x' + interpreter.stack.frame.result_var.hex() if interpreter.stack.frame.result_var is not None else None
+    found_res_var = '0x' + interpreter.stack.routine_frame.result_var.hex() if interpreter.stack.routine_frame.result_var is not None else None
     if state['ret_var'] != found_res_var:
         diffs['result_var'] = dict(expected=state['ret_var'], found=found_res_var)
 
-    found_ret_pc = hex(int(interpreter.stack.frame.return_pc)) if interpreter.stack.frame.return_pc is not None else '0x0000'
+    found_ret_pc = hex(int(interpreter.stack.routine_frame.return_pc)) if interpreter.stack.routine_frame.return_pc is not None else '0x0000'
     if state['ret_pc'] != found_ret_pc:
         diffs['return_pc'] = dict(expected=state['ret_pc'], found=found_ret_pc)
 

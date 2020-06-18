@@ -114,9 +114,14 @@ class ZMachineStack:
         return cur_frame.return_pc, cur_frame.result_var
 
     @property
-    def frame(self) -> ZMachineStackFrame:
+    def routine_frame(self) -> ZMachineStackFrame:
         """ Current routine's stack frame """
         return self._frames[-1]
+
+    @property
+    def frames(self) -> List[ZMachineStackFrame]:
+        """ All routine frames, in least-to-most recent order """
+        return self._frames
 
 
 class ZMachineStackUnderflow(ZMachineException):

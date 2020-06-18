@@ -3,18 +3,6 @@ import pytest
 from zfun import get_header, ZMachineObjectTable, ZMachineIllegalOperation, ZByte, ZWord
 
 
-@pytest.fixture
-def zork_v3_obj_table(zork1_v3_data: memoryview) -> ZMachineObjectTable:
-    header = get_header(zork1_v3_data)
-    yield ZMachineObjectTable(zork1_v3_data, header)
-
-
-@pytest.fixture
-def zork_v5_obj_table(zork1_v5_data: memoryview) -> ZMachineObjectTable:
-    header = get_header(zork1_v5_data)
-    yield ZMachineObjectTable(zork1_v5_data, header)
-
-
 def test_attributes_v3(zork_v3_obj_table: ZMachineObjectTable):
     cretin = zork_v3_obj_table.object(4)
     assert cretin.attributes == {7, 9, 14, 30}

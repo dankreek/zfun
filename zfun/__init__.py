@@ -5,6 +5,7 @@ from .input import ZMachineInput
 from .interpreter import ZMachineInterpreter, ZMachineResetException, ZMachineExitException, ZMachineRuntimeException, ZMachineInterpreterV3
 from .objects import ZMachineObject, ZMachineObjectTable
 from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOperandTypes
+from .quetzal import QuetzalChunk, HeaderQuetzalChunk, CMemQuetzalChunk, StacksQuetzalChunk, UMemQuetzalChunk
 from .screen import ZMachineScreen
 from .stack import ZMachineStack, ZMachineStackUnderflow
 from .tokenize import tokenize
@@ -21,6 +22,7 @@ __all__ = [
     'ZMachineInterpreter', 'ZMachineInterpreterV3', 'ZMachineResetException', 'ZMachineExitException',
     'ZMachineObject', 'ZMachineObjectTable',
     'ZMachineOperandTypes', 'ZMachineOpcodeParser', 'ZMachineOpcodeParserV3',
+    'QuetzalChunk', 'HeaderQuetzalChunk', 'CMemQuetzalChunk', 'StacksQuetzalChunk', 'UMemQuetzalChunk',
     'ZMachineScreen',
     'ZMachineStack', 'ZMachineStackUnderflow',
     'tokenize',

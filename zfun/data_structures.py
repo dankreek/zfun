@@ -151,6 +151,15 @@ class ZData(ABC):
         """
         return not self.is_bit_set(bit_number)
 
+    @abstractmethod
+    def set_bit(self, bit_number: int):
+        """ Get a new ZData object with the specified bit set.
+
+        :param bit_number: But number to set
+        :return: New ZData with bit set
+        """
+        pass
+
 
 class ZByte(ZData):
 
@@ -315,6 +324,10 @@ class ZByte(ZData):
         mask = 1 << bit_number
         return (self.int & mask) != 0
 
+    def set_bit(self, bit_number: int):
+        assert 0 <= bit_number <= 7, 'bit number must be between 0 and 7'
+        return ZByte.from_unsigned_int(self.unsigned_int | (1 << bit_number))
+
 
 class ZWord(ZData):
 
@@ -454,6 +467,10 @@ class ZWord(ZData):
         mask = 1 << bit_number
         return (self.int & mask) != 0
 
+    def set_bit(self, bit_number: int):
+        assert 0 <= bit_number <= 15, 'bit number must be between 0 and 15'
+        return ZByte.from_unsigned_int(self.unsigned_int | (1 << bit_number))
+
 
 class PC:
 
@@ -511,3 +528,19 @@ class PC:
 
     def __int__(self):
         return self._value
+
+    @staticmethod
+    def read(memory: Union[bytes, memoryview], offset: int = 0):
+        """ Read a 3-byte PC value from the provided memory at the given address.
+
+        :param memory:
+        :param offset:
+        :return: The PC stored in the binary data at the given address.
+        :rtype: PC
+        """
+        return PC(int.from_bytes(memory[offset:offset+3], 'big', signed=False))
+
+    @property
+    def bytes(self):
+        """ Get the 3-byte value of the PC """
+        return self._value.to_bytes(3, 'big', signed=False)
