@@ -15,7 +15,7 @@ class ZMachineVariables:
     def global_val(self, var_num: int) -> ZWord:
         """ Get the value of the given global variable number. """
         var_address = self._header.global_var_table_address + (var_num * 2)
-        return ZWord.read(self._memory, var_address)
+        return ZWord(self._memory, var_address)
 
     def set_global(self, var_num: int, val: ZWord):
         """ Set the value of the given global variable number.

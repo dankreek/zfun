@@ -20,9 +20,6 @@ def test_instantiating_zbyte():
         ZByte(22)
 
     with pytest.raises(ValueError):
-        ZByte(b'\x12\x34')
-
-    with pytest.raises(ValueError):
         ZByte(b'')
 
     with pytest.raises(ValueError):
@@ -119,10 +116,7 @@ def test_zbyte_bitwise_operations():
     assert ZByte.from_int(42) != ZByte(b'\x01')
 
 
-def test_zbyte_read_and_write_memory(zork1_v3_data: memoryview):
-    zb = ZByte.read(zork1_v3_data, 0)
-    assert zb.int == 3
-
+def test_zbyte_write_memory(zork1_v3_data: memoryview):
     ZByte.from_int(42).write(zork1_v3_data, 0)
     assert zork1_v3_data[0] == 42
 
@@ -152,6 +146,7 @@ def test_zbyte_to_zword_math():
     zw = ZByte.from_int(-128) % ZWord.from_int(2)
     assert zw.int == 0
 
+
 def test_instantiate_zword():
     zw = ZWord(bytes.fromhex('1234'))
     assert zw.bytes == b'\x12\x34', 'Instantiate ZWord from bytes'
@@ -167,9 +162,6 @@ def test_instantiate_zword():
 
     with pytest.raises(TypeError):
         ZWord(22)
-
-    with pytest.raises(ValueError):
-        ZWord(b'\x12\x34\x69')
 
     with pytest.raises(ValueError):
         ZWord(b'\x12')
@@ -277,10 +269,7 @@ def test_zword_bitwise_operations():
     assert ZWord.from_int(-1) != ZWord(b'\x00\x00')
 
 
-def test_zword_read_and_write_memory(zork1_v3_data: memoryview):
-    zw = ZWord.read(zork1_v3_data, 6)
-    assert zw.unsigned_int == 0x4f05
-
+def test_zword_write_memory(zork1_v3_data: memoryview):
     ZWord.from_unsigned_int(0x4269).write(zork1_v3_data, 6)
     assert zork1_v3_data[6:8] == b'\x42\x69'
 

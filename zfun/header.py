@@ -3,8 +3,9 @@ import io
 from abc import ABC, abstractmethod
 from typing import Union
 
-from .util import read_word, set_bit, is_bit_set
+from .util import set_bit, is_bit_set
 from .exc import UnsupportedVersionError
+from .data_structures import ZWord
 
 HEADER_SIZE = 64
 
@@ -45,6 +46,7 @@ class ZMachineColor(enum.Enum):
     WHITE = 9
 
 
+# TODO: Change interface to return ZData types when it makes sense
 class ZCodeHeader(ABC):
     def __init__(self, memory: memoryview):
         self._view = memory
@@ -156,12 +158,12 @@ class ZCodeHeader(ABC):
 
     @property
     def high_memory_address(self) -> int:
-        return read_word(self._view, 4)
+        return ZWord(self._view, 4).unsigned_int
 
     # These next two occupy the same word depending on version
     @property
     def initial_pc_value(self) -> int:
-        return read_word(self._view, 6)
+        return ZWord(self._view, 6).unsigned_int
 
     @property
     def initial_main_routine_address(self) -> int:
@@ -169,19 +171,19 @@ class ZCodeHeader(ABC):
 
     @property
     def dictionary_address(self) -> int:
-        return read_word(self._view, 8)
+        return ZWord(self._view, 8).unsigned_int
 
     @property
     def object_table_address(self) -> int:
-        return read_word(self._view, 0x0a)
+        return ZWord(self._view, 0x0a).unsigned_int
 
     @property
     def global_var_table_address(self) -> int:
-        return read_word(self._view, 0x0c)
+        return ZWord(self._view, 0x0c).unsigned_int
 
     @property
     def static_memory_address(self) -> int:
-        return read_word(self._view, 0x0e)
+        return ZWord(self._view, 0x0e).unsigned_int
 
     # Flags 2
     @property
@@ -267,7 +269,7 @@ class ZCodeHeader(ABC):
 
     @property
     def abbreviations_table_address(self) -> int:
-        return read_word(self._view, 0x18)
+        return ZWord(self._view, 0x18).unsigned_int
 
     @property
     def file_length(self) -> int:
@@ -364,7 +366,7 @@ class ZCodeHeader(ABC):
 
     @property
     def std_rev_number(self) -> int:
-        return read_word(self._view, 0x32)
+        return ZWord(self._view, 0x32).unsigned_int
 
     @property
     def alt_char_set_address(self) -> int:
@@ -445,12 +447,12 @@ class ZCodeHeaderV3(ZCodeHeaderV2):
 
     @property
     def file_length(self) -> int:
-        length = read_word(self._view, 0x1a)
+        length = ZWord(self._view, 0x1a).unsigned_int
         return length * 2
 
     @property
     def file_checksum(self) -> int:
-        return read_word(self._view, 0x1c)
+        return ZWord(self._view, 0x1c).unsigned_int
 
 
 class ZCodeHeaderV4(ZCodeHeaderV3):
@@ -463,7 +465,7 @@ class ZCodeHeaderV4(ZCodeHeaderV3):
 
     @property
     def file_length(self) -> int:
-        length = read_word(self._view, 0x1a)
+        length = ZWord(self._view, 0x1a).unsigned_int
         return length * 4
 
     @property
@@ -497,15 +499,15 @@ class ZCodeHeaderV5(ZCodeHeaderV4):
 
     @property
     def terminating_chars_table_address(self) -> int:
-        return read_word(self._view, 0x2e)
+        return ZWord(self._view, 0x2e).unsigned_int
 
     @property
     def alt_char_set_address(self) -> int:
-        return read_word(self._view, 0x34)
+        return ZWord(self._view, 0x34).unsigned_int
 
     @property
     def extension_table_address(self) -> int:
-        return read_word(self._view, 0x36)
+        return ZWord(self._view, 0x36).unsigned_int
 
 
 class ZCodeHeaderV6(ZCodeHeaderV5):
@@ -527,16 +529,16 @@ class ZCodeHeaderV6(ZCodeHeaderV5):
 
     @property
     def file_length(self) -> int:
-        length = read_word(self._view, 0x1a)
+        length = ZWord(self._view, 0x1a).unsigned_int
         return length * 8
 
     @property
     def routines_offset(self) -> int:
-        return read_word(self._view, 0x28) * 8
+        return ZWord(self._view, 0x28).unsigned_int * 8
 
     @property
     def static_strings_offset(self) -> int:
-        return read_word(self._view, 0x2a) * 8
+        return ZWord(self._view, 0x2a).unsigned_int * 8
 
 
 # TODO: make up better names for read_header and get_header

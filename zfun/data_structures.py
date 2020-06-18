@@ -85,17 +85,6 @@ class ZData(ABC):
 
     @staticmethod
     @abstractmethod
-    def read(memory: Union[bytes, memoryview], address: int):
-        """ Read ZData from memory at the provided address.
-
-        :param memory: Memory to read from
-        :param address: Address to read from
-        :return: ZData of memory at given address.
-        """
-        pass
-
-    @staticmethod
-    @abstractmethod
     def from_int(value: int):
         """ Return ZData from a signed int
 
@@ -165,17 +154,17 @@ class ZData(ABC):
 
 class ZByte(ZData):
 
-    def __init__(self, value: Union[ZData, bytes, memoryview]):
-        if type(value) == memoryview:
-            value = bytes(value)
+    def __init__(self, value: Union[ZData, bytes, memoryview], offset: int = 0):
+        if type(value) in [memoryview, bytes]:
+            if len(value) == 0:
+                raise ValueError('value must be at least 1 byte long')
+
+            value = bytes([value[offset]])
         elif type(value) == ZByte:
             # Copy/cast constructor
             value = value.bytes
-        elif type(value) != bytes:
+        else:
             raise TypeError('ZByte value can only be set with ZByte, bytes or memoryview')
-
-        if len(value) != 1:
-            raise ValueError('only one byte can be assigned to a ZByte')
 
         super().__init__(value)
 
@@ -319,10 +308,6 @@ class ZByte(ZData):
     def write(self, memory: memoryview, address: int):
         memory[address:address+1] = self._value
 
-    @staticmethod
-    def read(memory: Union[bytes, memoryview], address: int):
-        return ZByte(memory[address:address+1])
-
     def is_bit_set(self, bit_number: int) -> bool:
         if 0 < bit_number > 7:
             raise ValueError('Can only test bits 0-8 in a ZByte')
@@ -333,13 +318,16 @@ class ZByte(ZData):
 
 class ZWord(ZData):
 
-    def __init__(self, value: Union[ZData, bytes, memoryview]):
-        if type(value) == memoryview:
-            value = bytes(value)
-        elif type(value) == ZWord:
+    def __init__(self, value: Union[ZData, bytes, memoryview], offset: int = 0):
+        if type(value) == ZWord:
             # Copy/cast constructor
             value = value.bytes
-        elif type(value) != bytes:
+        elif type(value) in [memoryview, bytes]:
+            if len(value) < 2:
+                raise ValueError('value must be at least two bytes long')
+
+            value = bytes(value[offset:offset+2])
+        else:
             raise TypeError('ZWord value can only be set with ZWord, bytes or memoryview')
 
         if len(value) != 2:
@@ -458,10 +446,6 @@ class ZWord(ZData):
 
     def write(self, memory: memoryview, address: int):
         memory[address:address+2] = self._value
-
-    @staticmethod
-    def read(memory: Union[bytes, memoryview], address: int):
-        return ZWord(memory[address:address+2])
 
     def is_bit_set(self, bit_number: int) -> bool:
         if 0 < bit_number > 15:
