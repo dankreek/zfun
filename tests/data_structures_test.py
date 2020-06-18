@@ -20,9 +20,6 @@ def test_instantiating_zbyte():
         ZByte(22)
 
     with pytest.raises(ValueError):
-        ZByte(b'\x12\x34')
-
-    with pytest.raises(ValueError):
         ZByte(b'')
 
     with pytest.raises(ValueError):
@@ -152,6 +149,7 @@ def test_zbyte_to_zword_math():
     zw = ZByte.from_int(-128) % ZWord.from_int(2)
     assert zw.int == 0
 
+
 def test_instantiate_zword():
     zw = ZWord(bytes.fromhex('1234'))
     assert zw.bytes == b'\x12\x34', 'Instantiate ZWord from bytes'
@@ -167,9 +165,6 @@ def test_instantiate_zword():
 
     with pytest.raises(TypeError):
         ZWord(22)
-
-    with pytest.raises(ValueError):
-        ZWord(b'\x12\x34\x69')
 
     with pytest.raises(ValueError):
         ZWord(b'\x12')

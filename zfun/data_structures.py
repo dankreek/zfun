@@ -165,17 +165,17 @@ class ZData(ABC):
 
 class ZByte(ZData):
 
-    def __init__(self, value: Union[ZData, bytes, memoryview]):
-        if type(value) == memoryview:
-            value = bytes(value)
+    def __init__(self, value: Union[ZData, bytes, memoryview], offset: int = 0):
+        if type(value) in [memoryview, bytes]:
+            if len(value) == 0:
+                raise ValueError('value must be at least 1 byte long')
+
+            value = bytes([value[offset]])
         elif type(value) == ZByte:
             # Copy/cast constructor
             value = value.bytes
-        elif type(value) != bytes:
+        else:
             raise TypeError('ZByte value can only be set with ZByte, bytes or memoryview')
-
-        if len(value) != 1:
-            raise ValueError('only one byte can be assigned to a ZByte')
 
         super().__init__(value)
 
@@ -333,13 +333,16 @@ class ZByte(ZData):
 
 class ZWord(ZData):
 
-    def __init__(self, value: Union[ZData, bytes, memoryview]):
-        if type(value) == memoryview:
-            value = bytes(value)
-        elif type(value) == ZWord:
+    def __init__(self, value: Union[ZData, bytes, memoryview], offset: int = 0):
+        if type(value) == ZWord:
             # Copy/cast constructor
             value = value.bytes
-        elif type(value) != bytes:
+        elif type(value) in [memoryview, bytes]:
+            if len(value) < 2:
+                raise ValueError('value must be at least two bytes long')
+
+            value = bytes(value[offset:offset+2])
+        else:
             raise TypeError('ZWord value can only be set with ZWord, bytes or memoryview')
 
         if len(value) != 2:
