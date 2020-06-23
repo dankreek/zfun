@@ -516,10 +516,10 @@ class ZMachineInterpreter(ABC):
         prop_num = self._operand_val(1).unsigned_int
 
         obj = self._obj_table.object(obj_num)
-        prop_address = obj.properties.get(prop_num).value_address
+        property_info = obj.properties.get(prop_num)
 
-        if prop_address is not None:
-            self._variables.set(res_var, ZWord.from_unsigned_int(prop_address))
+        if property_info is not None:
+            self._variables.set(res_var, ZWord.from_unsigned_int(property_info.value_address))
         else:
             self._variables.set(res_var, ZWord.from_int(0))
 

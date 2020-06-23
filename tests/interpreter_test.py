@@ -128,6 +128,22 @@ def v3_header_and_data(zork1_v3_data: memoryview) -> Tuple[ZCodeHeader, memoryvi
     return header, zork1_v3_data
 
 
+def test_repro_none_property_value(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
+    header, memory = v3_header_and_data
+    screen = MockScreen()
+    input = MockInput(['s', 'e', 'open window', 'q', 'y'])
+
+    interpreter = ZMachineInterpreterV3(header, memory, screen, input)
+    interpreter.initialize()
+
+    try:
+        interpreter.run()
+        raise AssertionError('End of input should have occurred.')
+    except ZMachineExitException as e:
+        # check message
+        assert interpreter.pc == 0x6e08
+
+
 def test_playing_some_zork_v3(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
     header, memory = v3_header_and_data
     screen = MockScreen()
