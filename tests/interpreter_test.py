@@ -147,7 +147,7 @@ def test_repro_none_property_value(v3_header_and_data: Tuple[ZCodeHeader, memory
 def test_playing_some_zork_v3(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
     header, memory = v3_header_and_data
     screen = MockScreen()
-    input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'w', 'q', 'y'])
+    input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'q', 'y'])
 
     interpreter = ZMachineInterpreterV3(header, memory, screen, input)
     interpreter.initialize()
@@ -177,10 +177,7 @@ There is a small mailbox here.
 ZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!"
 
 
->Forest
-This is a forest, with trees in all directions. To the east, there appears to be sunlight.
-
->Your score is 0 (total of 350 points), in 4 moves.
+>Your score is 0 (total of 350 points), in 3 moves.
 This gives you the rank of Adventurer.
 Do you wish to leave the game? (Y is affirmative): >"""
 
