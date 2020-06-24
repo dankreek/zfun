@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Union, List, NamedTuple
+from typing import Tuple, Union, List, NamedTuple, Dict
 
 from .header import ZCodeHeader
 from .stack import ZMachineStack, ZMachineStackFrame
@@ -9,9 +9,8 @@ from .header import get_header
 
 class QuetzalChunk(ABC):
 
-    @staticmethod
     @abstractmethod
-    def chunk_id() -> bytes:
+    def chunk_id(self) -> bytes:
         """ Chunk ID for this Quetzal chunk """
         pass
 
@@ -44,12 +43,13 @@ class QuetzalChunk(ABC):
 class CMemQuetzalChunk(QuetzalChunk):
     """ Compressed Z-Machine memory """
 
+    _chunk_id = b'CMem'
+
     def __init__(self, compressed_data: bytes):
         self._compressed_data = compressed_data
 
-    @staticmethod
-    def chunk_id() -> bytes:
-        return b'CMem'
+    def chunk_id(self) -> bytes:
+        return self._chunk_id
 
     @staticmethod
     def create(original_memory: bytes, current_memory: memoryview):
@@ -111,7 +111,7 @@ class CMemQuetzalChunk(QuetzalChunk):
     @staticmethod
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
-        if chunk_id != CMemQuetzalChunk.chunk_id():
+        if chunk_id != CMemQuetzalChunk._chunk_id:
             # XXX: make better exception
             raise RuntimeError(f'Chunk at offset {offset} is not a CMem Quetzal chunk')
 
@@ -131,6 +131,8 @@ class CMemQuetzalChunk(QuetzalChunk):
 class UMemQuetzalChunk(QuetzalChunk):
     """ Uncompressed Z-Machine Memory """
 
+    _chunk_id = b'UMem'
+
     def __init__(self, save_memory: Union[bytes, memoryview]):
         self._saved_memory = bytes(save_memory)
 
@@ -138,14 +140,13 @@ class UMemQuetzalChunk(QuetzalChunk):
     def chunk_length(self) -> int:
         return len(self._saved_memory)
 
-    @staticmethod
-    def chunk_id() -> bytes:
-        return b'UMem'
+    def chunk_id(self) -> bytes:
+        return UMemQuetzalChunk._chunk_id
 
     @staticmethod
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
-        if chunk_id != UMemQuetzalChunk.chunk_id():
+        if chunk_id != UMemQuetzalChunk._chunk_id:
             # XXX: make better exception
             raise RuntimeError(f'Chunk at offset {offset} is not a UMem Quetzal chunk')
 
@@ -170,12 +171,13 @@ class UMemQuetzalChunk(QuetzalChunk):
 
 class StacksQuetzalChunk(QuetzalChunk):
 
+    _chunk_id = b'Stks'
+
     def __init__(self, stack_bytes: bytes):
         self._stack_bytes = stack_bytes
 
-    @staticmethod
-    def chunk_id() -> bytes:
-        return b'Stks'
+    def chunk_id(self) -> bytes:
+        return StacksQuetzalChunk._chunk_id
 
     @property
     def chunk_length(self) -> int:
@@ -260,7 +262,7 @@ class StacksQuetzalChunk(QuetzalChunk):
     @staticmethod
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
-        if chunk_id != StacksQuetzalChunk.chunk_id():
+        if chunk_id != StacksQuetzalChunk._chunk_id:
             # XXX: make better exception
             raise RuntimeError(f'Chunk at offset {offset} is not a Stks Quetzal chunk')
 
@@ -286,17 +288,18 @@ class QuetzalHeaderInfo(NamedTuple):
 
 class HeaderQuetzalChunk(QuetzalChunk):
 
+    _chunk_id = b'IFhd'
+
     def __init__(self, header_info_bytes: bytes):
         self._header_info_bytes = header_info_bytes
 
-    @staticmethod
-    def chunk_id() -> bytes:
-        return b'IFhd'
+    def chunk_id(self) -> bytes:
+        return HeaderQuetzalChunk._chunk_id
 
     @staticmethod
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
-        if chunk_id != HeaderQuetzalChunk.chunk_id():
+        if chunk_id != HeaderQuetzalChunk._chunk_id:
             # XXX: make better exception
             raise RuntimeError(f'Chunk at offset {offset} is not a IFhd Quetzal chunk')
 
@@ -340,3 +343,76 @@ class HeaderQuetzalChunk(QuetzalChunk):
     def bytes(self) -> bytes:
         return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=False) + self._header_info_bytes
 
+
+class UnknownQuetzalChunk(QuetzalChunk):
+
+    def __init__(self, chunk_id: bytes, data: bytes):
+        assert len(chunk_id) == 4, 'Quetzal chunk id must be 4 bytes'
+        self._chunk_id = chunk_id
+        self._data = data
+
+    def chunk_id(self) -> bytes:
+        return self._chunk_id
+
+    def chunk_data(self) -> bytes:
+        return self._data
+
+    @property
+    def chunk_length(self) -> int:
+        return len(self._data)
+
+    @staticmethod
+    def read(data: bytes, offset: int = 0) -> Tuple:
+        chunk_id = data[offset:offset+4]
+        offset += 4
+
+        size = int.from_bytes(data[offset:offset+4], 'big', signed=False)
+        offset += 4
+
+        chunk_data = data[offset:offset+size]
+        offset += size
+
+        return UnknownQuetzalChunk(chunk_id, chunk_data), offset
+
+    def bytes(self) -> bytes:
+        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=False) + self._data
+
+
+supported_chunks = {
+    CMemQuetzalChunk._chunk_id: CMemQuetzalChunk,
+    UMemQuetzalChunk._chunk_id: UMemQuetzalChunk,
+    StacksQuetzalChunk._chunk_id: StacksQuetzalChunk,
+    HeaderQuetzalChunk._chunk_id: HeaderQuetzalChunk
+}
+
+
+def parse_quetzal_chunk(data: bytes, offset: int) -> Tuple[QuetzalChunk, int]:
+    chunk_id = data[offset:offset+4]
+
+    if chunk_id in supported_chunks:
+        chunk, next_offset = supported_chunks[chunk_id].read(data, offset)
+    else:
+        chunk, next_offset = UnknownQuetzalChunk.read(data, offset)
+
+    return chunk, next_offset
+
+
+def parse_quetzal(data: bytes) -> Dict[str, List[QuetzalChunk]]:
+    offset = 0
+    chunks = dict()
+
+    while offset < len(data):
+        chunk, offset = parse_quetzal_chunk(data, offset)
+        chunk_id = chunk.chunk_id().decode('ascii')
+        chunks.setdefault(chunk_id, [])
+        chunks[chunk_id].append(chunk)
+
+    return chunks
+
+
+def compile_quetzal(chunks: List[QuetzalChunk]) -> bytes:
+    output = bytearray()
+    for chunk in chunks:
+        output += chunk.bytes()
+
+    return bytes(output)
