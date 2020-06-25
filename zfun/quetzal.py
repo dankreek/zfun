@@ -116,7 +116,7 @@ class CMemQuetzalChunk(QuetzalChunk):
             raise RuntimeError(f'Chunk at offset {offset} is not a CMem Quetzal chunk')
 
         offset += 4
-        size = int.from_bytes(data[offset:offset+4], 'big', signed=False)
+        size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
 
         offset += 4
         compressed_data = data[offset:offset+size]
@@ -125,7 +125,7 @@ class CMemQuetzalChunk(QuetzalChunk):
         return CMemQuetzalChunk(compressed_data), offset
 
     def bytes(self) -> bytes:
-        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=False) + self._compressed_data
+        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=True) + self._compressed_data
 
 
 class UMemQuetzalChunk(QuetzalChunk):
@@ -151,7 +151,7 @@ class UMemQuetzalChunk(QuetzalChunk):
             raise RuntimeError(f'Chunk at offset {offset} is not a UMem Quetzal chunk')
 
         offset += 4
-        size = int.from_bytes(data[offset:offset+4], 'big', signed=False)
+        size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
 
         offset += 4
         saved_data = data[offset:offset+size]
@@ -166,7 +166,7 @@ class UMemQuetzalChunk(QuetzalChunk):
         return self._saved_memory
 
     def bytes(self) -> bytes:
-        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=False) + self._saved_memory
+        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=True) + self._saved_memory
 
 
 class StacksQuetzalChunk(QuetzalChunk):
@@ -267,7 +267,7 @@ class StacksQuetzalChunk(QuetzalChunk):
             raise RuntimeError(f'Chunk at offset {offset} is not a Stks Quetzal chunk')
 
         offset += 4
-        size = int.from_bytes(data[offset:offset+4], 'big', signed=False)
+        size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
 
         offset += 4
         stack_bytes = data[offset:offset+size]
@@ -276,7 +276,7 @@ class StacksQuetzalChunk(QuetzalChunk):
         return StacksQuetzalChunk(stack_bytes), offset
 
     def bytes(self) -> bytes:
-        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=False) + self._stack_bytes
+        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=True) + self._stack_bytes
 
 
 class QuetzalHeaderInfo(NamedTuple):
@@ -304,7 +304,7 @@ class HeaderQuetzalChunk(QuetzalChunk):
             raise RuntimeError(f'Chunk at offset {offset} is not a IFhd Quetzal chunk')
 
         offset += 4
-        size = int.from_bytes(data[offset:offset+4], 'big', signed=False)
+        size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
 
         offset += 4
         header_data = data[offset:offset+size]
@@ -341,7 +341,7 @@ class HeaderQuetzalChunk(QuetzalChunk):
         return 13
 
     def bytes(self) -> bytes:
-        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=False) + self._header_info_bytes
+        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=True) + self._header_info_bytes
 
 
 class UnknownQuetzalChunk(QuetzalChunk):
@@ -366,7 +366,7 @@ class UnknownQuetzalChunk(QuetzalChunk):
         chunk_id = data[offset:offset+4]
         offset += 4
 
-        size = int.from_bytes(data[offset:offset+4], 'big', signed=False)
+        size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
         offset += 4
 
         chunk_data = data[offset:offset+size]
@@ -375,44 +375,106 @@ class UnknownQuetzalChunk(QuetzalChunk):
         return UnknownQuetzalChunk(chunk_id, chunk_data), offset
 
     def bytes(self) -> bytes:
-        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=False) + self._data
+        return self.chunk_id() + self.chunk_length.to_bytes(4, 'big', signed=True) + self._data
 
 
-supported_chunks = {
-    CMemQuetzalChunk._chunk_id: CMemQuetzalChunk,
-    UMemQuetzalChunk._chunk_id: UMemQuetzalChunk,
-    StacksQuetzalChunk._chunk_id: StacksQuetzalChunk,
-    HeaderQuetzalChunk._chunk_id: HeaderQuetzalChunk
-}
+class IFZSContainer:
 
+    supported_chunks = {
+        CMemQuetzalChunk._chunk_id: CMemQuetzalChunk,
+        UMemQuetzalChunk._chunk_id: UMemQuetzalChunk,
+        StacksQuetzalChunk._chunk_id: StacksQuetzalChunk,
+        HeaderQuetzalChunk._chunk_id: HeaderQuetzalChunk
+    }
 
-def parse_quetzal_chunk(data: bytes, offset: int) -> Tuple[QuetzalChunk, int]:
-    chunk_id = data[offset:offset+4]
+    def __init__(self, chunks: List[QuetzalChunk]):
+        self._chunks = chunks
 
-    if chunk_id in supported_chunks:
-        chunk, next_offset = supported_chunks[chunk_id].read(data, offset)
-    else:
-        chunk, next_offset = UnknownQuetzalChunk.read(data, offset)
+    def _compile_quetzal_chunks(self) -> bytes:
+        output = bytearray()
+        for chunk in self._chunks:
+            output += chunk.bytes()
 
-    return chunk, next_offset
+            # chunks must start on an even-numbered offset, so pad with a 0 if length is odd
+            if len(output) % 2 != 0:
+                output += b'\x00'
 
+        return bytes(output)
 
-def parse_quetzal(data: bytes) -> Dict[str, List[QuetzalChunk]]:
-    offset = 0
-    chunks = dict()
+    @staticmethod
+    def parse_quetzal_chunk(data: bytes, offset: int) -> Tuple[QuetzalChunk, int]:
+        chunk_id = data[offset:offset+4]
 
-    while offset < len(data):
-        chunk, offset = parse_quetzal_chunk(data, offset)
-        chunk_id = chunk.chunk_id().decode('ascii')
-        chunks.setdefault(chunk_id, [])
-        chunks[chunk_id].append(chunk)
+        if chunk_id in IFZSContainer.supported_chunks:
+            chunk, next_offset = IFZSContainer.supported_chunks[chunk_id].read(data, offset)
+        else:
+            chunk, next_offset = UnknownQuetzalChunk.read(data, offset)
 
-    return chunks
+        return chunk, next_offset
 
+    @staticmethod
+    def parse_quetzal_chunks(data: bytes) -> List[QuetzalChunk]:
+        offset = 0
+        chunks = list()
 
-def compile_quetzal(chunks: List[QuetzalChunk]) -> bytes:
-    output = bytearray()
-    for chunk in chunks:
-        output += chunk.bytes()
+        while offset < len(data):
+            chunk, offset = IFZSContainer.parse_quetzal_chunk(data, offset)
+            chunks.append(chunk)
 
-    return bytes(output)
+            # chunk offsets can only occur on even numbered offsets
+            if offset % 2 != 0:
+                offset += 1
+
+        return chunks
+
+    def bytes(self) -> bytes:
+        """
+        :return: Binary representation of the IFF file
+        """
+        chunks_binary = self._compile_quetzal_chunks()
+
+        # Total size is size of all chunks, plus 4 for the form indicator
+        total_size = len(chunks_binary) + 4
+
+        output = bytearray()
+        output += b'FORM'
+        output += total_size.to_bytes(4, 'big', signed=True)
+        output += 'IFZS'.encode('ascii')
+        output += chunks_binary
+
+        return bytes(output)
+
+    @staticmethod
+    def create(ifzs_data: bytes):
+        """ Create a new IFZSContainer object from IFZS data.
+
+        :param ifzs_data: Raw data for the IFZS file
+        :return: An IFZSContainer object populated with chunks
+        :rtype: IFZSContainer
+        """
+        if ifzs_data[:4] != b'FORM' or ifzs_data[8:12] != b'IFZS':
+            # XXX: Need better exception
+            raise ValueError('Not a valid IFZS container')
+
+        chunks = IFZSContainer.parse_quetzal_chunks(ifzs_data[12:])
+
+        return IFZSContainer(chunks)
+
+    @property
+    def chunks(self) -> List[QuetzalChunk]:
+        return self._chunks
+
+    def chunk(self, chunk_id: str) -> QuetzalChunk:
+        """ Get the first chunk found with the given id
+
+        :param chunk_id: Chunk ID in string
+        :return:
+        """
+        chunk_id = chunk_id.encode('ascii')
+
+        for chunk in self._chunks:
+            if chunk.chunk_id() == chunk_id:
+                return chunk
+
+        # XXX: raise a good exception if can't be found
+
