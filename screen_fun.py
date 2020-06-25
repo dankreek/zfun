@@ -1,3 +1,4 @@
+from curses import wrapper
 import sys
 from io import BytesIO
 from zfun import get_header, ZCodeHeader, ZMachineInterpreterV3, ZMachineExitException, ZMachineResetException
@@ -17,26 +18,27 @@ def header_and_data(file_path: str) -> Tuple[ZCodeHeader, memoryview]:
 
 def new_interpreter(file_name: str):
     header, data = header_and_data(file_name)
-    screen = ZMachineCursesScreenV3()
-    interpreter = ZMachineInterpreterV3(header, data, screen, screen)
+    interface = ZMachineCursesScreenV3()
+    interpreter = ZMachineInterpreterV3(header, data, interface, interface, interface)
     return interpreter
 
 
-def main(argv):
-    interpreter = new_interpreter(argv[1])
+def run(_, game_file):
     while True:
+        interpreter = new_interpreter(game_file)
         try:
             interpreter.initialize()
             interpreter.run()
         except ZMachineExitException:
-            interpreter.terminate()
-            sys.exit(0)
+            return
         except ZMachineResetException:
+            pass
+        finally:
             interpreter.terminate()
-            interpreter = new_interpreter(argv[1])
-        except Exception as e:
-            interpreter.terminate()
-            raise e
+
+
+def main(argv):
+    wrapper(run, argv[1])
 
 
 if __name__ == '__main__':

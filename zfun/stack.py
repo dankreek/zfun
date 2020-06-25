@@ -1,5 +1,5 @@
 import copy
-from typing import Union, List, Tuple, NamedTuple
+from typing import Union, List, Tuple, NamedTuple, Iterable
 from .exc import ZMachineException, ZMachineIllegalOperation
 from .data_structures import ZWord, ZByte, ZData, PC
 
@@ -122,6 +122,17 @@ class ZMachineStack:
     def frames(self) -> List[ZMachineStackFrame]:
         """ All routine frames, in least-to-most recent order """
         return self._frames
+
+    def replace_frames(self, frames: Iterable[ZMachineStackFrame]):
+        """ Replace the existing stack frames with the provided frames.
+
+        This is useful for game restoration.
+
+        :param frames:
+        """
+        self._frames.clear()
+        for frame in frames:
+            self._frames.append(frame)
 
 
 class ZMachineStackUnderflow(ZMachineException):

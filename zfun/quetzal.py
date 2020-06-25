@@ -5,6 +5,15 @@ from .header import ZCodeHeader
 from .stack import ZMachineStack, ZMachineStackFrame
 from .data_structures import ZWord, ZByte, PC
 from .header import get_header
+from .exc import ZMachineException
+
+
+class QuetzalReadError(ZMachineException):
+    pass
+
+
+class IFZSReadError(ZMachineException):
+    pass
 
 
 class QuetzalChunk(ABC):
@@ -80,6 +89,9 @@ class CMemQuetzalChunk(QuetzalChunk):
 
                 output.append(diff)
 
+        if zero_count != 0:
+            output.append(zero_count - 1)
+
         return CMemQuetzalChunk(bytes(output))
 
     @property
@@ -112,8 +124,7 @@ class CMemQuetzalChunk(QuetzalChunk):
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
         if chunk_id != CMemQuetzalChunk._chunk_id:
-            # XXX: make better exception
-            raise RuntimeError(f'Chunk at offset {offset} is not a CMem Quetzal chunk')
+            raise QuetzalReadError(f'Chunk at offset {offset} is not a CMem Quetzal chunk')
 
         offset += 4
         size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
@@ -147,8 +158,7 @@ class UMemQuetzalChunk(QuetzalChunk):
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
         if chunk_id != UMemQuetzalChunk._chunk_id:
-            # XXX: make better exception
-            raise RuntimeError(f'Chunk at offset {offset} is not a UMem Quetzal chunk')
+            raise QuetzalReadError(f'Chunk at offset {offset} is not a UMem Quetzal chunk')
 
         offset += 4
         size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
@@ -200,8 +210,8 @@ class StacksQuetzalChunk(QuetzalChunk):
 
             # TODO: Fix this for version 4+, flags
             passed_parameters_flags = ZByte(b'\x00')
-            for i in range(len(frame.local_vars)):
-                passed_parameters_flags = passed_parameters_flags.set_bit(i)
+            # for i in range(len(frame.local_vars)):
+            #     passed_parameters_flags = passed_parameters_flags.set_bit(i)
             stack_bytes += passed_parameters_flags.bytes
 
             # Add number of stack words used
@@ -263,8 +273,7 @@ class StacksQuetzalChunk(QuetzalChunk):
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
         if chunk_id != StacksQuetzalChunk._chunk_id:
-            # XXX: make better exception
-            raise RuntimeError(f'Chunk at offset {offset} is not a Stks Quetzal chunk')
+            raise QuetzalReadError(f'Chunk at offset {offset} is not a Stks Quetzal chunk')
 
         offset += 4
         size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
@@ -300,8 +309,7 @@ class HeaderQuetzalChunk(QuetzalChunk):
     def read(data: bytes, offset: int = 0) -> Tuple:
         chunk_id = data[offset:offset+4]
         if chunk_id != HeaderQuetzalChunk._chunk_id:
-            # XXX: make better exception
-            raise RuntimeError(f'Chunk at offset {offset} is not a IFhd Quetzal chunk')
+            raise QuetzalReadError(f'Chunk at offset {offset} is not a IFhd Quetzal chunk')
 
         offset += 4
         size = int.from_bytes(data[offset:offset+4], 'big', signed=True)
@@ -439,22 +447,21 @@ class IFZSContainer:
         output = bytearray()
         output += b'FORM'
         output += total_size.to_bytes(4, 'big', signed=True)
-        output += 'IFZS'.encode('ascii')
+        output += b'IFZS'
         output += chunks_binary
 
         return bytes(output)
 
     @staticmethod
-    def create(ifzs_data: bytes):
-        """ Create a new IFZSContainer object from IFZS data.
+    def read(ifzs_data: bytes):
+        """ Read data and create a new IFZSContainer object from IFZS data.
 
         :param ifzs_data: Raw data for the IFZS file
         :return: An IFZSContainer object populated with chunks
         :rtype: IFZSContainer
         """
         if ifzs_data[:4] != b'FORM' or ifzs_data[8:12] != b'IFZS':
-            # XXX: Need better exception
-            raise ValueError('Not a valid IFZS container')
+            raise IFZSReadError('Not a valid IFZS container')
 
         chunks = IFZSContainer.parse_quetzal_chunks(ifzs_data[12:])
 
@@ -464,17 +471,15 @@ class IFZSContainer:
     def chunks(self) -> List[QuetzalChunk]:
         return self._chunks
 
-    def chunk(self, chunk_id: str) -> QuetzalChunk:
+    def chunk(self, chunk_id: str) -> Union[None, QuetzalChunk, UnknownQuetzalChunk, HeaderQuetzalChunk, UMemQuetzalChunk, CMemQuetzalChunk, StacksQuetzalChunk]:
         """ Get the first chunk found with the given id
 
         :param chunk_id: Chunk ID in string
-        :return:
+        :return: The first chunk found with the provided id, or None if not found
         """
         chunk_id = chunk_id.encode('ascii')
 
         for chunk in self._chunks:
             if chunk.chunk_id() == chunk_id:
                 return chunk
-
-        # XXX: raise a good exception if can't be found
 

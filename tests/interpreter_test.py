@@ -5,7 +5,31 @@ from os import path
 from typing import Tuple
 
 from mocks import MockInput, MockScreen
-from zfun import ZCodeHeader, ZMachineInterpreter, ZMachineInterpreterV3, get_header, ZMachineVariables, ZMachineObjectTable, ZMachineStack, ZMachineExitException
+from zfun import (
+    ZCodeHeader, ZMachineInterpreter, ZMachineInterpreterV3, get_header, ZMachineVariables,
+    ZMachineObjectTable, ZMachineStack, ZMachineExitException, IFZSContainer, ZMachineSaveRestoreHandler,
+    StacksQuetzalChunk, CMemQuetzalChunk, HeaderQuetzalChunk
+)
+
+
+class MockSaveRestoreHandler(ZMachineSaveRestoreHandler):
+
+    def __init__(self):
+        self.save_data = b''
+        self.invalid_game_errors = []
+        self.invalid_data_errors = []
+
+    def save(self, save_data: bytes):
+        self.save_data = save_data
+
+    def restore(self) -> bytes:
+        return self.save_data
+
+    def invalid_restore_game(self, error_message: str):
+        self.invalid_game_errors.append(error_message)
+
+    def invalid_restore_data(self, error_message: str):
+        self.invalid_data_errors.append(error_message)
 
 
 def compare_machine_state(interpreter: ZMachineInterpreter, state_data_dir: str, num_objects: int = 250) -> dict:
@@ -132,8 +156,9 @@ def test_repro_none_property_value(v3_header_and_data: Tuple[ZCodeHeader, memory
     header, memory = v3_header_and_data
     screen = MockScreen()
     input = MockInput(['s', 'e', 'open window', 'q', 'y'])
+    save_restore = MockSaveRestoreHandler()
 
-    interpreter = ZMachineInterpreterV3(header, memory, screen, input)
+    interpreter = ZMachineInterpreterV3(header, memory, screen, input, save_restore)
     interpreter.initialize()
 
     try:
@@ -148,8 +173,9 @@ def test_playing_some_zork_v3(v3_header_and_data: Tuple[ZCodeHeader, memoryview]
     header, memory = v3_header_and_data
     screen = MockScreen()
     input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'q', 'y'])
+    save_restore = MockSaveRestoreHandler()
 
-    interpreter = ZMachineInterpreterV3(header, memory, screen, input)
+    interpreter = ZMachineInterpreterV3(header, memory, screen, input, save_restore)
     interpreter.initialize()
 
     try:
@@ -187,8 +213,9 @@ def test_compare_with_other_zmachine(v3_header_and_data: Tuple[ZCodeHeader, memo
     header, memory = v3_header_and_data
     screen = MockScreen()
     input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'w'])
+    save_restore = MockSaveRestoreHandler()
 
-    interpreter = ZMachineInterpreterV3(header, memory, screen, input)
+    interpreter = ZMachineInterpreterV3(header, memory, screen, input, save_restore)
     interpreter.initialize()
 
     while True:
@@ -200,4 +227,21 @@ def test_compare_with_other_zmachine(v3_header_and_data: Tuple[ZCodeHeader, memo
                 # Looks weird, but useful for setting a breakpoint here
                 assert diffs == {}
 
+
+def test_save_and_restore(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
+    save_restore = MockSaveRestoreHandler()
+    header, memory = v3_header_and_data
+    screen = MockScreen()
+    mock_input = MockInput(['save', 'e', 'restore', 'q', 'y'])
+
+    interpreter = ZMachineInterpreterV3(header, memory, screen, mock_input, save_restore)
+
+    try:
+        interpreter.run()
+        raise AssertionError('interpreter should have exited')
+    except ZMachineExitException:
+        pass
+
+    room_obj_num = interpreter.variables.global_val(0)
+    assert room_obj_num.unsigned_int == 180, 'player should in West of House after restore'
 
