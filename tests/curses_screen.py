@@ -1,11 +1,11 @@
 import curses
 import textwrap
 
-from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType
-from typing import List, Union, Tuple
+from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, ZMachineSaveRestoreHandler
+from typing import List, Union, Tuple, Optional
 
 
-class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
+class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreHandler):
 
     def __init__(self):
         self._header = Union[ZCodeHeader, None]
@@ -52,6 +52,38 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput):
                 return False
 
         return True
+
+    def save(self, save_data: bytes):
+        self.print('Enter save filename (without extension) > ')
+        filename = self.read_string(128) + '.sav'
+
+        try:
+            with open(filename, 'wb') as f:
+                f.write(save_data)
+
+            return True
+        except PermissionError:
+            self.print(f'Permission denied writing to: {filename}\n')
+            return False
+
+    def restore(self) -> Optional[bytes]:
+        self.print('Enter save filename (without extension) > ')
+        filename = self.read_string(128) + '.sav'
+
+        try:
+            with open(filename, 'rb') as f:
+                save_data = f.read()
+
+            return save_data
+        except FileNotFoundError:
+            self.print(f'Save file {filename} not found\n')
+            return None
+
+    def invalid_restore_game(self, error_message: str):
+        self.print(f'Invalid restore file: {error_message}\n')
+
+    def invalid_restore_data(self, error_message: str):
+        self.print(f'Invalid save game: {error_message}\n')
 
     def initialize(self, interpreter: ZMachineInterpreter):
         self._header = interpreter.header

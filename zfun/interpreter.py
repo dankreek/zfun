@@ -9,6 +9,7 @@ from .header import ZCodeHeader
 from .input import ZMachineInput
 from .opcodes import ZMachineOpcodeParserV3, ZMachineOperandTypes
 from .objects import ZMachineObjectTable
+from .quetzal import HeaderQuetzalChunk, UMemQuetzalChunk, CMemQuetzalChunk, StacksQuetzalChunk, IFZSContainer, QuetzalReadError, IFZSReadError
 from .screen import ZMachineScreen
 from .stack import ZMachineStack
 from .tokenize import tokenize
@@ -17,12 +18,46 @@ from .variables import ZMachineVariables
 from .z_string import z_string_to_str, z_string_to_str_with_next
 
 
+class ZMachineSaveRestoreHandler(ABC):
+
+    @abstractmethod
+    def save(self, save_data: bytes):
+        """ Save the provided save game data.
+
+        :param save_data:
+        :return: True if successful, False if a known failure occured
+        """
+        pass
+
+    @abstractmethod
+    def restore(self) -> bytes:
+        """ Provide interpreter with a restored game.
+
+        If a known error occurs, return None.
+
+        :return: Save data for the game
+        """
+        pass
+
+    @abstractmethod
+    def invalid_restore_game(self, error_message: str):
+        """ Called when the provided restore data is valid but is for a different game. """
+        pass
+
+    @abstractmethod
+    def invalid_restore_data(self, error_message: str):
+        """ Called when the provided restore data is an invalid save file """
+        pass
+
+
 class ZMachineInterpreter(ABC):
-    def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput):
+    def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput, save_restore: ZMachineSaveRestoreHandler):
         self._header = header
         self._memory = memory
+        self._original_memory = bytes(memory)
         self._screen = screen
         self._keyboard = keyboard
+        self._save_restore = save_restore
         self._step_count = 0
 
         self._stack = ZMachineStack()
@@ -129,23 +164,6 @@ class ZMachineInterpreter(ABC):
 
             if (breakpoint_pc is not None) and (self._pc == breakpoint_pc):
                 return
-
-    @abstractmethod
-    def save_handler(self, save_data: bytes) -> bool:
-        """ Save the save_data somewhere to be restored later.
-
-        :param save_data: Save game data
-        :return: True if save was successful, False if not
-        """
-        pass
-
-    @abstractmethod
-    def restore_handler(self) -> Union[bytes, None]:
-        """ Read save data from user and return it.
-
-        :return: Game state data, or None if loading data failed.
-        """
-        pass
 
     @staticmethod
     @abstractmethod
@@ -683,18 +701,12 @@ class ZMachineInterpreter(ABC):
 
 class ZMachineInterpreterV3(ZMachineInterpreter):
 
-    def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput):
+    def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput, save_restore: ZMachineSaveRestoreHandler):
         assert header.version == 3, 'invalid z-code version for version interpreter'
-        super().__init__(header, memory, screen, keyboard)
+        super().__init__(header, memory, screen, keyboard, save_restore)
 
     def terminate(self):
         super().terminate()
-
-    def save_handler(self, save_data: bytes) -> bool:
-        pass
-
-    def restore_handler(self) -> Union[bytes, None]:
-        pass
 
     def initialize(self):
         super().initialize()
@@ -716,15 +728,76 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         self._variables.set(res_var, ~val)
 
     def _opcode__save(self):
+        # For V3 interpreters save the PC right before the branch info is read
+        save_pc = self._pc
+
+        chunks = [
+            HeaderQuetzalChunk.create(self._header, save_pc),
+            CMemQuetzalChunk.create(self._original_memory, self._memory),
+            StacksQuetzalChunk.create(self._stack)
+        ]
+
+        ifzs = IFZSContainer(chunks)
+        success = self._save_restore.save(ifzs.bytes())
+
         predicate_type, offset = self._read_branch()
-        # TODO #12: Implement save game state
-        success = self.save_handler(bytes([]))
-        self._handle_branch(success == predicate_type, offset)
+        self._handle_branch(success, predicate_type, offset)
 
     def _opcode__restore(self):
         predicate_type, offset = self._read_branch()
-        # TODO #12: Implement restore game state
-        restore_data = self.restore_handler()
+        restore_data = self._save_restore.restore()
+
+        if restore_data is None:
+            self._handle_branch(False, predicate_type, offset)
+            return
+
+        try:
+            ifzs = IFZSContainer.read(restore_data)
+        except (QuetzalReadError, IFZSReadError) as e:
+            self._save_restore.invalid_restore_data(f'invalid save gamedata: {e.message}')
+            self._handle_branch(False, predicate_type, offset)
+            return
+
+        header_chunk: HeaderQuetzalChunk = ifzs.chunk('IFhd')
+        cmem_chunk: CMemQuetzalChunk = ifzs.chunk('CMem')
+        umem_chunk: UMemQuetzalChunk = ifzs.chunk('UMem')
+        stacks_chunk: StacksQuetzalChunk = ifzs.chunk('Stks')
+
+        # ensure all chunks required are available
+        data_error_message = None
+        if header_chunk is None:
+            data_error_message = 'no header found in save data'
+        elif stacks_chunk is None:
+            data_error_message = 'no stack found in save data'
+        elif cmem_chunk is None and umem_chunk is None:
+            data_error_message = 'no game memory found in save data'
+        else:
+            # check the header chunk against the current game's header
+            header_info = header_chunk.header_info()
+            if header_info.release_number != self._header.release_number:
+                data_error_message = 'save data was not generated from this game'
+            elif header_info.serial_number != self._header.serial_code:
+                data_error_message = 'save data was not generated from this game'
+            elif header_info.checksum != self._header.file_checksum:
+                data_error_message = 'save data was not generated from this game'
+
+        if data_error_message:
+            self._save_restore.invalid_restore_data(data_error_message)
+            self._handle_branch(False, predicate_type, offset)
+        else:
+            if cmem_chunk is not None:
+                saved_memory = cmem_chunk.saved_memory(self._original_memory)
+            else:
+                saved_memory = umem_chunk.saved_memory()
+
+            # replace the memory, stack and PC
+            self._pc = header_chunk.header_info().restore_pc
+
+            # Consume the branch byte(s) but no need to store them
+            _ = self._read_branch()
+
+            self._stack.replace_frames(stacks_chunk.saved_stack().frames)
+            self._memory[:len(saved_memory)] = saved_memory
 
     def _opcode__pop(self):
         self._stack.pop()

@@ -5,7 +5,31 @@ from os import path
 from typing import Tuple
 
 from mocks import MockInput, MockScreen
-from zfun import ZCodeHeader, ZMachineInterpreter, ZMachineInterpreterV3, get_header, ZMachineVariables, ZMachineObjectTable, ZMachineStack, ZMachineExitException
+from zfun import (
+    ZCodeHeader, ZMachineInterpreter, ZMachineInterpreterV3, get_header, ZMachineVariables,
+    ZMachineObjectTable, ZMachineStack, ZMachineExitException, IFZSContainer, ZMachineSaveRestoreHandler,
+    StacksQuetzalChunk, CMemQuetzalChunk, HeaderQuetzalChunk
+)
+
+
+class MockSaveRestoreHandler(ZMachineSaveRestoreHandler):
+
+    def __init__(self):
+        self.save_data = b''
+        self.invalid_game_errors = []
+        self.invalid_data_errors = []
+
+    def save(self, save_data: bytes):
+        self.save_data = save_data
+
+    def restore(self) -> bytes:
+        return self.save_data
+
+    def invalid_restore_game(self, error_message: str):
+        self.invalid_game_errors.append(error_message)
+
+    def invalid_restore_data(self, error_message: str):
+        self.invalid_data_errors.append(error_message)
 
 
 def compare_machine_state(interpreter: ZMachineInterpreter, state_data_dir: str, num_objects: int = 250) -> dict:
@@ -87,35 +111,35 @@ def compare_machine_state(interpreter: ZMachineInterpreter, state_data_dir: str,
                            found=hex(int(interpreter.pc)))
 
     # Local vars
-    if len(state['local_vars']) != len(interpreter.stack.frame.local_vars):
+    if len(state['local_vars']) != len(interpreter.stack.routine_frame.local_vars):
         diffs['num_local_vars'] = dict(expected=len(state['local_vars']))
     else:
         for i in range(len(state['local_vars'])):
             expected = state['local_vars'][i]
-            found = '0x' + interpreter.stack.frame.local_vars[i].hex()
+            found = '0x' + interpreter.stack.routine_frame.local_vars[i].hex()
             if expected != found:
                 diffs.setdefault('local_vars', {})
                 diffs['local_vars'][i] = dict(expected=expected, found=found)
 
     # Routine stack
-    if len(state['stack']) != len(interpreter.stack.frame.stack_data):
+    if len(state['stack']) != len(interpreter.stack.routine_frame.stack_data):
         diffs['routine_stack_size'] = dict(expected=len(state['stack']),
-                                           found=len(interpreter.stack.frame.stack_data))
+                                           found=len(interpreter.stack.routine_frame.stack_data))
     else:
         for i in range(len(state['stack'])):
             expected = state['stack'][i]
-            found = '0x' + interpreter.stack.frame.stack_data[i].hex()
+            found = '0x' + interpreter.stack.routine_frame.stack_data[i].hex()
 
             if expected != found:
                 diffs.setdefault('routine_stack', {})
                 diffs['routine_stack'][i] = dict(expected=expected, found=found)
 
     # ret var
-    found_res_var = '0x' + interpreter.stack.frame.result_var.hex() if interpreter.stack.frame.result_var is not None else None
+    found_res_var = '0x' + interpreter.stack.routine_frame.result_var.hex() if interpreter.stack.routine_frame.result_var is not None else None
     if state['ret_var'] != found_res_var:
         diffs['result_var'] = dict(expected=state['ret_var'], found=found_res_var)
 
-    found_ret_pc = hex(int(interpreter.stack.frame.return_pc)) if interpreter.stack.frame.return_pc is not None else '0x0000'
+    found_ret_pc = hex(int(interpreter.stack.routine_frame.return_pc)) if interpreter.stack.routine_frame.return_pc is not None else '0x0000'
     if state['ret_pc'] != found_ret_pc:
         diffs['return_pc'] = dict(expected=state['ret_pc'], found=found_ret_pc)
 
@@ -132,8 +156,9 @@ def test_repro_none_property_value(v3_header_and_data: Tuple[ZCodeHeader, memory
     header, memory = v3_header_and_data
     screen = MockScreen()
     input = MockInput(['s', 'e', 'open window', 'q', 'y'])
+    save_restore = MockSaveRestoreHandler()
 
-    interpreter = ZMachineInterpreterV3(header, memory, screen, input)
+    interpreter = ZMachineInterpreterV3(header, memory, screen, input, save_restore)
     interpreter.initialize()
 
     try:
@@ -147,9 +172,10 @@ def test_repro_none_property_value(v3_header_and_data: Tuple[ZCodeHeader, memory
 def test_playing_some_zork_v3(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
     header, memory = v3_header_and_data
     screen = MockScreen()
-    input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'w', 'q', 'y'])
+    input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'q', 'y'])
+    save_restore = MockSaveRestoreHandler()
 
-    interpreter = ZMachineInterpreterV3(header, memory, screen, input)
+    interpreter = ZMachineInterpreterV3(header, memory, screen, input, save_restore)
     interpreter.initialize()
 
     try:
@@ -177,10 +203,7 @@ There is a small mailbox here.
 ZORK is a game of adventure, danger, and low cunning. In it you will explore some of the most amazing territory ever seen by mortals. No computer should be without one!"
 
 
->Forest
-This is a forest, with trees in all directions. To the east, there appears to be sunlight.
-
->Your score is 0 (total of 350 points), in 4 moves.
+>Your score is 0 (total of 350 points), in 3 moves.
 This gives you the rank of Adventurer.
 Do you wish to leave the game? (Y is affirmative): >"""
 
@@ -190,8 +213,9 @@ def test_compare_with_other_zmachine(v3_header_and_data: Tuple[ZCodeHeader, memo
     header, memory = v3_header_and_data
     screen = MockScreen()
     input = MockInput(['open mailbox', 'get leaflet', 'read leaflet', 'w'])
+    save_restore = MockSaveRestoreHandler()
 
-    interpreter = ZMachineInterpreterV3(header, memory, screen, input)
+    interpreter = ZMachineInterpreterV3(header, memory, screen, input, save_restore)
     interpreter.initialize()
 
     while True:
@@ -203,4 +227,21 @@ def test_compare_with_other_zmachine(v3_header_and_data: Tuple[ZCodeHeader, memo
                 # Looks weird, but useful for setting a breakpoint here
                 assert diffs == {}
 
+
+def test_save_and_restore(v3_header_and_data: Tuple[ZCodeHeader, memoryview]):
+    save_restore = MockSaveRestoreHandler()
+    header, memory = v3_header_and_data
+    screen = MockScreen()
+    mock_input = MockInput(['save', 'e', 'restore', 'q', 'y'])
+
+    interpreter = ZMachineInterpreterV3(header, memory, screen, mock_input, save_restore)
+
+    try:
+        interpreter.run()
+        raise AssertionError('interpreter should have exited')
+    except ZMachineExitException:
+        pass
+
+    room_obj_num = interpreter.variables.global_val(0)
+    assert room_obj_num.unsigned_int == 180, 'player should in West of House after restore'
 

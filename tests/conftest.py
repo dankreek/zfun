@@ -1,10 +1,9 @@
 import io
-from typing import Tuple, List
 
 import pytest
 import os.path as path
 
-from zfun import ZMachineDictionary, get_header, ZMachineScreen, ZMachineInput, ZMachineStack
+from zfun import ZMachineDictionary, get_header, ZMachineObjectTable
 
 
 def _file_memorybuffer(file_name: str):
@@ -34,5 +33,17 @@ def zork_v5_dict(zork1_v5_data: memoryview) -> ZMachineDictionary:
 def zork_v3_dict(zork1_v3_data: memoryview) -> ZMachineDictionary:
     header = get_header(zork1_v3_data)
     yield ZMachineDictionary(zork1_v3_data, header)
+
+
+@pytest.fixture
+def zork_v3_obj_table(zork1_v3_data: memoryview) -> ZMachineObjectTable:
+    header = get_header(zork1_v3_data)
+    yield ZMachineObjectTable(zork1_v3_data, header)
+
+
+@pytest.fixture
+def zork_v5_obj_table(zork1_v5_data: memoryview) -> ZMachineObjectTable:
+    header = get_header(zork1_v5_data)
+    yield ZMachineObjectTable(zork1_v5_data, header)
 
 
