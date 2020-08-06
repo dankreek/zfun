@@ -1,6 +1,6 @@
 from enum import Enum
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Union, Tuple, List
+from typing import NamedTuple, Union, Tuple, List, Optional
 
 from .data_structures import ZWord, ZByte, ZData, PC
 
@@ -24,10 +24,10 @@ class ZMachineOpcode(NamedTuple):
     opcode: str
 
     """ Argument types for the opcode """
-    operand_types: Union[None, Tuple[ZMachineOperandTypes]]
+    operand_types: Optional[Tuple[ZMachineOperandTypes]]
 
     """ Operand values for the opcode """
-    operands: Union[None, Tuple[ZData]]
+    operands: Optional[Tuple[ZData]]
 
     """ Raw data for opcode and operands """
     data: bytes
@@ -38,7 +38,7 @@ class ZMachineOpcodeParser(ABC):
     def __init__(self, memory: Union[bytes, memoryview]):
         self._memory = memory
 
-    def _parse_short_operand_types(self, opcode_byte) -> Union[None, Tuple[ZMachineOperandTypes]]:
+    def _parse_short_operand_types(self, opcode_byte) -> Optional[Tuple[ZMachineOperandTypes]]:
         # The single operand type is stored in bits 5 and 4 and correspond the values of OperandTypes
         # Put the single opcode type in bits 7 and 6, and pad with 1's (which indicates no operand)
         types_byte = (opcode_byte << 2) | 0x3f
@@ -104,7 +104,7 @@ class ZMachineOpcodeParser(ABC):
         return tuple(types_list), next_pc
 
     @abstractmethod
-    def short_form_opcode_name(self, opcode_byte) -> Union[None, str]:
+    def short_form_opcode_name(self, opcode_byte) -> Optional[str]:
         """
 
         :param opcode_byte:
@@ -113,7 +113,7 @@ class ZMachineOpcodeParser(ABC):
         pass
 
     @abstractmethod
-    def long_form_opcode_name(self, opcode_byte) -> Union[None, str]:
+    def long_form_opcode_name(self, opcode_byte) -> Optional[str]:
         """
 
         :param opcode_byte:
@@ -122,14 +122,14 @@ class ZMachineOpcodeParser(ABC):
         pass
 
     @abstractmethod
-    def variable_form_opcode_name(self, opcode_byte) -> Union[None, str]:
+    def variable_form_opcode_name(self, opcode_byte) -> Optional[str]:
         """
         :param opcode_byte:
         :return: Name of the variable form opcode for implemented z-machine version, None if opcode not supported
         """
         pass
 
-    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Union[None, Tuple[ZData]], int]:
+    def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Optional[Tuple[ZData]], int]:
         """ Read the operands at the given address as the specified types.
 
         :param operands_addr: Address where operands are located
@@ -318,7 +318,7 @@ variable_form_opcodes_v3 = [
 
 
 class ZMachineOpcodeParserV3(ZMachineOpcodeParser):
-    def short_form_opcode_name(self, opcode_byte) -> Union[None, str]:
+    def short_form_opcode_name(self, opcode_byte) -> Optional[str]:
         # If bits 5 and 4 are 0b11 then this is a 0-operand opcode, otherwise it's a 1-operand opcode
         # The opcode identifier itself is in the lower 4 bits
         if opcode_byte & 0b0011_0000 == 0b0011_0000:
@@ -326,11 +326,11 @@ class ZMachineOpcodeParserV3(ZMachineOpcodeParser):
         else:
             return short_form_1op_opcodes_v3[opcode_byte & 0x0f]
 
-    def long_form_opcode_name(self, opcode_byte) -> Union[None, str]:
+    def long_form_opcode_name(self, opcode_byte) -> Optional[str]:
         # Opcode identifier in long form is in the lower 5 bits
         return long_form_opcodes_v3[opcode_byte & 0x1f]
 
-    def variable_form_opcode_name(self, opcode_byte) -> Union[None, str]:
+    def variable_form_opcode_name(self, opcode_byte) -> Optional[str]:
         # If the top bits are 0b110 then this is the variable form of a 2OP instruction
         if (opcode_byte & 0b1110_0000) == 0b1100_0000:
             # Opcode identifier is in lower 5 bits
