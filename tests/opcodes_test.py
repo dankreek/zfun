@@ -55,7 +55,7 @@ def test_variable_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
         ZMachineOperandTypes.SMALL_CONSTANT
     )
     assert call.operands == (ZByte(b'\x88'), ZByte(b'\x32'), ZByte(b'\x12'))
-    assert next_pc == 0x5157 + 5
+    assert next_pc == 0x5157 + 6
 
     # Test unique variable opcode instructions
     call, next_pc = opcodes_v3.parse(0x4f05)

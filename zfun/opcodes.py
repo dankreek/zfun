@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import NamedTuple, Union, Tuple, List, Optional
 
 from .data_structures import ZWord, ZByte, ZData, PC
+from .util import is_bit_set
 from .exc import ZMachineException
 
 
@@ -24,20 +25,30 @@ class ZMachineOperandTypes(Enum):
     OMITTED = 3
 
 
+class ZMachineLabel(NamedTuple):
+    predicate_type: bool
+    offset: int
+
+    """ The size of the label, 1 or 2 bytes """
+    size: int
+
+
+# XXX: add string literal here
 class ZMachineOpcodeInfo(NamedTuple):
     """ String version of opcode """
     name: str
 
     """ Argument types for the opcode """
-    operand_types: Optional[Tuple[ZMachineOperandTypes]]
+    operand_types: Tuple[ZMachineOperandTypes]
 
     """ Operand values for the opcode """
-    operands: Optional[Tuple[ZData]]
+    operands: Tuple[ZData]
 
     """ Variable to store result, if applicable """
     result_var: Optional[ZByte]
 
-    # XXX: Put branch type and address in here next
+    """ Predicate type and offset for a branching instruction, if applicable """
+    label: Optional[ZMachineLabel]
 
     """ Raw data for opcode and operands """
     data: bytes
@@ -114,7 +125,7 @@ class ZMachineOpcodeParser(ABC):
         return tuple(types_list), next_pc
 
     @abstractmethod
-    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
+    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool]]:
         """
 
         :param opcode_byte:
@@ -123,7 +134,7 @@ class ZMachineOpcodeParser(ABC):
         pass
 
     @abstractmethod
-    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
+    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool]]:
         """
 
         :param opcode_byte:
@@ -132,7 +143,7 @@ class ZMachineOpcodeParser(ABC):
         pass
 
     @abstractmethod
-    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
+    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool]]:
         """
         :param opcode_byte:
         :return: Tuple of opcode name, and bool indicating if opcode has a result variable, None if opcode not supported
@@ -182,6 +193,45 @@ class ZMachineOpcodeParser(ABC):
         else:
             return OpcodeForm.LONG
 
+    def _read_label(self, address: int) -> Tuple[ZMachineLabel, int]:
+        """ Read a predicate type and offset for a branching instruction
+
+        See section 4.7 of the Z-Machine Standards Document.
+
+        :param address: Address to read label at
+        :return: Decoded label info at address and the address of the next instruction in memory
+        """
+        first_branch_byte = self._memory[address]
+
+        # If bit 7 is set, the predicate is a True type
+        if is_bit_set(self._memory, address, 7):
+            predicate = True
+        else:
+            predicate = False
+
+        # If bit 6 is set, then the offset is an unsigned 6-bit number
+        if is_bit_set(self._memory, address, 6):
+            # Mask off the predicate and number type bits
+            offset = ZByte.from_unsigned_int(first_branch_byte & 0b0011_1111).unsigned_int
+            size = 1
+        else:
+            # If bit 6 is set then the offset is a 14-bit signed int, using the rest of the bits in
+            # this byte and all of the the next byte. Since we can only address 8 or 16 bit numbers the
+            # predicate and number type bits need to be padded with the same value as the sign bit.
+            if is_bit_set(self._memory, address, 5):
+                # Pad with 1's since this is a negative number
+                first_branch_byte |= 0b1110_0000
+            else:
+                # Pad with 0's since this is a positive number
+                first_branch_byte &= 0b0001_1111
+
+            next_branch_byte = self._memory[address + 1]
+            size = 2
+
+            offset = ZWord(bytes([first_branch_byte, next_branch_byte])).int
+
+        return ZMachineLabel(predicate, offset, size), address + size
+
     def parse(self, opcode_pc: PC) -> Tuple[ZMachineOpcodeInfo, PC]:
         """ Get the opcode and arguments at the given address.
 
@@ -218,7 +268,7 @@ class ZMachineOpcodeParser(ABC):
         if opcode_info is None:
             raise ZMachineOpcodeParsingError('opcode not found')
         else:
-            opcode_name, has_result = opcode_info
+            opcode_name, has_result, has_label = opcode_info
 
         # Read in the result variable number and advance the PC
         if has_result:
@@ -227,11 +277,17 @@ class ZMachineOpcodeParser(ABC):
         else:
             res_var = None
 
+        if has_label:
+            label, next_pc = self._read_label(next_pc)
+        else:
+            label = None
+
         opcode_info = ZMachineOpcodeInfo(
             opcode_name,
             operand_types,
             operands,
             res_var,
+            label,
             bytes(self._memory[address:next_pc])
         )
 
@@ -239,70 +295,70 @@ class ZMachineOpcodeParser(ABC):
 
 
 short_form_1op_opcodes_v3 = [
-    ('jz', False),
-    ('get_sibling', True),
-    ('get_child', True),
-    ('get_parent', True),
-    ('get_prop_len', True),
-    ('inc', False),
-    ('dec', False),
-    ('print_addr', False),
+    ('jz', False, True),
+    ('get_sibling', True, True),
+    ('get_child', True, True),
+    ('get_parent', True, False),
+    ('get_prop_len', True, False),
+    ('inc', False, False),
+    ('dec', False, False),
+    ('print_addr', False, False),
     None,
-    ('remove_obj', False),
-    ('print_obj', False),
-    ('ret', False),
-    ('jump', False),
-    ('print_paddr', False),
-    ('load', True),
-    ('not', True)
+    ('remove_obj', False, False),
+    ('print_obj', False, False),
+    ('ret', False, False),
+    ('jump', False, False),
+    ('print_paddr', False, False),
+    ('load', True, False),
+    ('not', True, False)
 ]
 
 short_form_0op_opcodes_v3 = [
-    ('rtrue', False),
-    ('rfalse', False),
-    ('print', False),
-    ('print_ret', False),
-    ('nop', False),
-    ('save', False),
-    ('restore', False),
-    ('restart', False),
-    ('ret_popped', False),
-    ('pop', False),
-    ('quit', False),
-    ('new_line', False),
-    ('show_status', False),
+    ('rtrue', False, False),
+    ('rfalse', False, False),
+    ('print', False, False),
+    ('print_ret', False, False),
+    ('nop', False, False),
+    ('save', False, True),
+    ('restore', False, True),
+    ('restart', False, False),
+    ('ret_popped', False, False),
+    ('pop', False, False),
+    ('quit', False, False),
+    ('new_line', False, False),
+    ('show_status', False, False),
     None,
-    ('verify', False),
+    ('verify', False, True),
     None,
     None
 ]
 
 long_form_opcodes_v3 = [
     None,
-    ('je', False),
-    ('jl', False),
-    ('jg', False),
-    ('dec_chk', False),
-    ('inc_chk', False),
-    ('jin', False),
-    ('test', False),
-    ('or', True),
-    ('and', True),
-    ('test_attr', False),
-    ('set_attr', False),
-    ('clear_attr', False),
-    ('store', False),
-    ('insert_obj', False),
-    ('loadw', True),
-    ('loadb', True),
-    ('get_prop', True),
-    ('get_prop_addr', True),
-    ('get_next_prop', True),
-    ('add', True),
-    ('sub', True),
-    ('mul', True),
-    ('div', True),
-    ('mod', True),
+    ('je', False, True),
+    ('jl', False, True),
+    ('jg', False, True),
+    ('dec_chk', False, True),
+    ('inc_chk', False, True),
+    ('jin', False, True),
+    ('test', False, True),
+    ('or', True, False),
+    ('and', True, False),
+    ('test_attr', False, True),
+    ('set_attr', False, False),
+    ('clear_attr', False, False),
+    ('store', False, False),
+    ('insert_obj', False, False),
+    ('loadw', True, False),
+    ('loadb', True, False),
+    ('get_prop', True, False),
+    ('get_prop_addr', True, False),
+    ('get_next_prop', True, False),
+    ('add', True, False),
+    ('sub', True, False),
+    ('mul', True, False),
+    ('div', True, False),
+    ('mod', True, False),
     None,
     None,
     None,
@@ -314,18 +370,18 @@ long_form_opcodes_v3 = [
 ]
 
 variable_form_opcodes_v3 = [
-    ('call', True),
-    ('storew', False),
-    ('storeb', False),
-    ('put_prop', False),
-    ('sread', False),
-    ('print_char', False),
-    ('print_num', False),
-    ('random', True),
-    ('push', False),
-    ('pull', False),
-    ('split_window', False),
-    ('set_window', False),
+    ('call', True, False),
+    ('storew', False, False),
+    ('storeb', False, False),
+    ('put_prop', False, False),
+    ('sread', False, False),
+    ('print_char', False, False),
+    ('print_num', False, False),
+    ('random', True, False),
+    ('push', False, False),
+    ('pull', False, False),
+    ('split_window', False, False),
+    ('set_window', False, False),
     None,
     None,
     None,
@@ -333,9 +389,9 @@ variable_form_opcodes_v3 = [
     None,
     None,
     None,
-    ('output_stream', False),
-    ('input_stream', False),
-    ('sound_effect', False),
+    ('output_stream', False, False),
+    ('input_stream', False, False),
+    ('sound_effect', False, False),
     None,
     None,
     None,
@@ -348,7 +404,7 @@ variable_form_opcodes_v3 = [
 
 
 class ZMachineOpcodeParserV3(ZMachineOpcodeParser):
-    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
+    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool]]:
         # If bits 5 and 4 are 0b11 then this is a 0-operand opcode, otherwise it's a 1-operand opcode
         # The opcode identifier itself is in the lower 4 bits
         if opcode_byte & 0b0011_0000 == 0b0011_0000:
@@ -356,11 +412,11 @@ class ZMachineOpcodeParserV3(ZMachineOpcodeParser):
         else:
             return short_form_1op_opcodes_v3[opcode_byte & 0x0f]
 
-    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
+    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool]]:
         # Opcode identifier in long form is in the lower 5 bits
         return long_form_opcodes_v3[opcode_byte & 0x1f]
 
-    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
+    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool]]:
         # If the top bits are 0b110 then this is the variable form of a 2OP instruction
         if (opcode_byte & 0b1110_0000) == 0b1100_0000:
             # Opcode identifier is in lower 5 bits
