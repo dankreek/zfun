@@ -21,7 +21,7 @@ class ZMachineOperandTypes(Enum):
 
 class ZMachineOpcode(NamedTuple):
     """ String version of opcode """
-    opcode: str
+    name: str
 
     """ Argument types for the opcode """
     operand_types: Optional[Tuple[ZMachineOperandTypes]]

@@ -1,6 +1,6 @@
 import random
 from abc import ABC, abstractmethod
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 
 from .data_structures import ZWord, ZByte, ZData, PC
 from .dictionary import ZMachineDictionary
@@ -59,6 +59,9 @@ class ZMachineInterpreter(ABC):
         self._keyboard = keyboard
         self._save_restore = save_restore
         self._step_count = 0
+
+        # The result variable for the currently executing opcode method
+        self._res_var: Optional[ZByte] = None
 
         self._stack = ZMachineStack()
         self._pc: PC = PC(header.initial_pc_value)
@@ -129,36 +132,38 @@ class ZMachineInterpreter(ABC):
         start_pc = self._pc
 
         try:
-            opcode_and_operands, next_pc = self._opcode_parser.parse(self._pc)
+            opcode, next_pc = self._opcode_parser.parse(self._pc)
             self._pc = next_pc
 
-            opcode_method_name = '_opcode__' + opcode_and_operands.opcode
+            opcode_method_name = '_opcode__' + opcode.name
 
             if not hasattr(self, opcode_method_name):
-                raise ZMachineUndefinedInstruction(f'The instruction `{opcode_and_operands.opcode}` is not defined for this interpreter.')
+                raise ZMachineUndefinedInstruction(f'The instruction `{opcode.name}` is not defined for this interpreter.')
             else:
-                self._operands = opcode_and_operands.operands
-                self._operand_types = opcode_and_operands.operand_types
-                is_call = opcode_and_operands.opcode.startswith('call')
+                self._operands = opcode.operands
+                self._operand_types = opcode.operand_types
 
-                # Call opcodes are handled a little different, they are passed the result var number so it can be stored on the stack
-                if is_call:
-                    args = [opcode_and_operands.result_var]
-                else:
-                    args = []
+                # Is this opcode a routine call?
+                is_call = opcode.name.startswith('call')
+
+                # Store the result variable in case any opcode methods need it (mostly call opcodes)
+                self._res_var = opcode.result_var
 
                 # Call the opcode's handler method
-                res_val = self.__getattribute__(opcode_method_name)(*args)
+                res_val = self.__getattribute__(opcode_method_name)()
 
-                if opcode_and_operands.result_var is not None and not is_call:
+                # call opcodes don't actually return their result, it is stored on the stack instead
+                if opcode.result_var is not None and not is_call:
                     if res_val is None:
-                        raise ZMachineRuntimeException(f'The {opcode_and_operands.opcode} opcode required a return value')
+                        raise ZMachineRuntimeException(f'The {opcode.name} opcode required a return value')
                     elif not issubclass(type(res_val), ZData):
-                        raise ZMachineRuntimeException(f'Result returned from opcode {opcode_and_operands.opcode} is not of type ZData')
+                        raise ZMachineRuntimeException(f'Result returned from opcode {opcode.name} is not of type ZData')
 
-                    self._variables.set(opcode_and_operands.result_var, res_val)
+                    self._variables.set(opcode.result_var, res_val)
 
+                self._res_var = None
                 self._step_count += 1
+
         except (ZMachineExitException, ZMachineResetException) as e:
             # These exceptions are expected so just reraise them
             raise e
@@ -797,7 +802,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # Technically supposed to verify the integrity of the game file, but not doing it
         pass
 
-    def _opcode__call(self, res_var: ZByte):
+    def _opcode__call(self):
         packed_address = ZWord(self._operand_val(0))
 
         # The first operand contains the packed address of the routine to call.
@@ -817,10 +822,10 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             initial_local_var_values[local_var_num] = self._operand_val(local_var_num+1)
 
         if routine_address == 0:
-            self._variables.set(res_var, ZWord.from_int(0))
+            self._variables.set(self._res_var, ZWord.from_int(0))
         else:
             # Add new frame to the stack for this routine
-            self._stack.push_routine_call(self._pc, local_vars_count, res_var, *initial_local_var_values)
+            self._stack.push_routine_call(self._pc, local_vars_count, self._res_var, *initial_local_var_values)
 
             # The address of the first instruction is directly after all the parameters
             self._pc = PC(routine_address + 1 + (local_vars_count * 2))
