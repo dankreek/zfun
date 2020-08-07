@@ -3,6 +3,11 @@ from abc import ABC, abstractmethod
 from typing import NamedTuple, Union, Tuple, List, Optional
 
 from .data_structures import ZWord, ZByte, ZData, PC
+from .exc import ZMachineException
+
+
+class ZMachineOpcodeParsingError(ZMachineException):
+    pass
 
 
 class OpcodeForm(Enum):
@@ -19,7 +24,7 @@ class ZMachineOperandTypes(Enum):
     OMITTED = 3
 
 
-class ZMachineOpcode(NamedTuple):
+class ZMachineOpcodeInfo(NamedTuple):
     """ String version of opcode """
     name: str
 
@@ -177,7 +182,7 @@ class ZMachineOpcodeParser(ABC):
         else:
             return OpcodeForm.LONG
 
-    def parse(self, opcode_pc: PC) -> Tuple[ZMachineOpcode, PC]:
+    def parse(self, opcode_pc: PC) -> Tuple[ZMachineOpcodeInfo, PC]:
         """ Get the opcode and arguments at the given address.
 
         Note that the next PC that is returned will be at the position where Opcode decoding left off,
@@ -193,32 +198,44 @@ class ZMachineOpcodeParser(ABC):
         opcode_form = self._opcode_form(opcode_byte)
 
         next_pc = address + 1
-        try:
-            if opcode_form == OpcodeForm.VARIABLE:
-                opcode_name, has_result = self.variable_form_opcode(opcode_byte)
-                # Variable operand types are stored in the byte/bytes following the opcode
-                operand_types, next_pc = self._parse_variable_operand_types(next_pc, 1)
-            elif opcode_form == OpcodeForm.SHORT:
-                opcode_name, has_result = self.short_form_opcode(opcode_byte)
-                # The short operand type is stored in the opcode byte itself
-                operand_types = self._parse_short_operand_types(opcode_byte)
-            else:
-                opcode_name, has_result = self.long_form_opcode(opcode_byte)
-                # Long form operand types are also stored in the opcode byte
-                operand_types = self._parse_long_operand_types(opcode_byte)
-
-            operands, next_pc = self._read_operands(next_pc, operand_types)
-
-            # Read in the result variable number and advance the PC
-            if has_result:
-                res_var = ZByte(self._memory, next_pc)
-                next_pc += 1
-            else:
-                res_var = None
-
-            return ZMachineOpcode(opcode_name, operand_types, operands, res_var, bytes(self._memory[address:next_pc])), PC(next_pc)
-        except TypeError:
+        if opcode_form == OpcodeForm.VARIABLE:
+            opcode_info = self.variable_form_opcode(opcode_byte)
+            # Variable operand types are stored in the byte/bytes following the opcode
+            operand_types, next_pc = self._parse_variable_operand_types(next_pc, 1)
+        elif opcode_form == OpcodeForm.SHORT:
+            opcode_info = self.short_form_opcode(opcode_byte)
+            # The short operand type is stored in the opcode byte itself
+            operand_types = self._parse_short_operand_types(opcode_byte)
+        elif opcode_form == OpcodeForm.LONG:
+            opcode_info = self.long_form_opcode(opcode_byte)
+            # Long form operand types are also stored in the opcode byte
+            operand_types = self._parse_long_operand_types(opcode_byte)
+        else:
             raise NotImplemented('Extended opcodes are not currently implemented')
+
+        operands, next_pc = self._read_operands(next_pc, operand_types)
+
+        if opcode_info is None:
+            raise ZMachineOpcodeParsingError('opcode not found')
+        else:
+            opcode_name, has_result = opcode_info
+
+        # Read in the result variable number and advance the PC
+        if has_result:
+            res_var = ZByte(self._memory, next_pc)
+            next_pc += 1
+        else:
+            res_var = None
+
+        opcode_info = ZMachineOpcodeInfo(
+            opcode_name,
+            operand_types,
+            operands,
+            res_var,
+            bytes(self._memory[address:next_pc])
+        )
+
+        return opcode_info, PC(next_pc)
 
 
 short_form_1op_opcodes_v3 = [

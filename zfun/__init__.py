@@ -4,7 +4,7 @@ from .header import get_header, read_header, ZCodeHeader, StatusLineType
 from .input import ZMachineInput
 from .interpreter import ZMachineInterpreter, ZMachineResetException, ZMachineExitException, ZMachineRuntimeException, ZMachineInterpreterV3, ZMachineSaveRestoreHandler
 from .objects import ZMachineObject, ZMachineObjectTable
-from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOperandTypes
+from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOperandTypes, ZMachineOpcodeParsingError
 from .quetzal import QuetzalChunk, HeaderQuetzalChunk, CMemQuetzalChunk, StacksQuetzalChunk, UMemQuetzalChunk, IFZSContainer, QuetzalReadError, IFZSReadError
 from .screen import ZMachineScreen
 from .stack import ZMachineStack, ZMachineStackUnderflow
@@ -22,7 +22,7 @@ __all__ = [
     'ZMachineInterpreter', 'ZMachineInterpreterV3', 'ZMachineResetException', 'ZMachineExitException',
     'ZMachineSaveRestoreHandler', 'QuetzalReadError', 'IFZSReadError',
     'ZMachineObject', 'ZMachineObjectTable',
-    'ZMachineOperandTypes', 'ZMachineOpcodeParser', 'ZMachineOpcodeParserV3',
+    'ZMachineOperandTypes', 'ZMachineOpcodeParser', 'ZMachineOpcodeParserV3', 'ZMachineOpcodeParsingError',
     'QuetzalChunk', 'HeaderQuetzalChunk', 'CMemQuetzalChunk', 'StacksQuetzalChunk', 'UMemQuetzalChunk', 'IFZSContainer',
     'ZMachineScreen',
     'ZMachineStack', 'ZMachineStackUnderflow',
