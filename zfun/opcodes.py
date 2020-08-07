@@ -29,6 +29,11 @@ class ZMachineOpcode(NamedTuple):
     """ Operand values for the opcode """
     operands: Optional[Tuple[ZData]]
 
+    """ Variable to store result, if applicable """
+    result_var: Optional[ZByte]
+
+    # XXX: Put branch type and address in here next
+
     """ Raw data for opcode and operands """
     data: bytes
 
@@ -104,28 +109,28 @@ class ZMachineOpcodeParser(ABC):
         return tuple(types_list), next_pc
 
     @abstractmethod
-    def short_form_opcode_name(self, opcode_byte) -> Optional[str]:
+    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
         """
 
         :param opcode_byte:
-        :return: Name of the short form opcode for the implemented z-machine version, None if opcode not supported
+        :return: Tuple of opcode name, and bool indicating if opcode has a result variable, None if opcode not supported
         """
         pass
 
     @abstractmethod
-    def long_form_opcode_name(self, opcode_byte) -> Optional[str]:
+    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
         """
 
         :param opcode_byte:
-        :return: Name of the long form opcode for the implemented z-machine version, None if opcode not supported
+        :return: Tuple of opcode name, and bool indicating if opcode has a result variable, None if opcode not supported
         """
         pass
 
     @abstractmethod
-    def variable_form_opcode_name(self, opcode_byte) -> Optional[str]:
+    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
         """
         :param opcode_byte:
-        :return: Name of the variable form opcode for implemented z-machine version, None if opcode not supported
+        :return: Tuple of opcode name, and bool indicating if opcode has a result variable, None if opcode not supported
         """
         pass
 
@@ -188,91 +193,99 @@ class ZMachineOpcodeParser(ABC):
         opcode_form = self._opcode_form(opcode_byte)
 
         next_pc = address + 1
-        if opcode_form == OpcodeForm.VARIABLE:
-            opcode_name = self.variable_form_opcode_name(opcode_byte)
-            # Variable operand types are stored in the byte/bytes following the opcode
-            operand_types, next_pc = self._parse_variable_operand_types(next_pc, 1)
-        elif opcode_form == OpcodeForm.SHORT:
-            opcode_name = self.short_form_opcode_name(opcode_byte)
-            # The short operand type is stored in the opcode byte itself
-            operand_types = self._parse_short_operand_types(opcode_byte)
-        elif opcode_form == OpcodeForm.LONG:
-            opcode_name = self.long_form_opcode_name(opcode_byte)
-            # Long form operand types are also stored in the opcode byte
-            operand_types = self._parse_long_operand_types(opcode_byte)
-        else:
+        try:
+            if opcode_form == OpcodeForm.VARIABLE:
+                opcode_name, has_result = self.variable_form_opcode(opcode_byte)
+                # Variable operand types are stored in the byte/bytes following the opcode
+                operand_types, next_pc = self._parse_variable_operand_types(next_pc, 1)
+            elif opcode_form == OpcodeForm.SHORT:
+                opcode_name, has_result = self.short_form_opcode(opcode_byte)
+                # The short operand type is stored in the opcode byte itself
+                operand_types = self._parse_short_operand_types(opcode_byte)
+            else:
+                opcode_name, has_result = self.long_form_opcode(opcode_byte)
+                # Long form operand types are also stored in the opcode byte
+                operand_types = self._parse_long_operand_types(opcode_byte)
+
+            operands, next_pc = self._read_operands(next_pc, operand_types)
+
+            # Read in the result variable number and advance the PC
+            if has_result:
+                res_var = ZByte(self._memory, next_pc)
+                next_pc += 1
+            else:
+                res_var = None
+
+            return ZMachineOpcode(opcode_name, operand_types, operands, res_var, bytes(self._memory[address:next_pc])), PC(next_pc)
+        except TypeError:
             raise NotImplemented('Extended opcodes are not currently implemented')
-
-        operands, next_pc = self._read_operands(next_pc, operand_types)
-
-        return ZMachineOpcode(opcode_name, operand_types, operands, bytes(self._memory[address:next_pc])), PC(next_pc)
 
 
 short_form_1op_opcodes_v3 = [
-    'jz',           # 99 Problems
-    'get_sibling',
-    'get_child',
-    'get_parent',
-    'get_prop_len',
-    'inc',
-    'dec',
-    'print_addr',
+    ('jz', False),
+    ('get_sibling', True),
+    ('get_child', True),
+    ('get_parent', True),
+    ('get_prop_len', True),
+    ('inc', False),
+    ('dec', False),
+    ('print_addr', False),
     None,
-    'remove_obj',
-    'print_obj',
-    'ret',
-    'jump',
-    'print_paddr',
-    'load',
-    'not'
+    ('remove_obj', False),
+    ('print_obj', False),
+    ('ret', False),
+    ('jump', False),
+    ('print_paddr', False),
+    ('load', True),
+    ('not', True)
 ]
 
 short_form_0op_opcodes_v3 = [
-    'rtrue',
-    'rfalse',
-    'print',
-    'print_ret',
-    'nop',
-    'save',
-    'restore',
-    'restart',
-    'ret_popped',
-    'pop',
-    'quit',
-    'new_line',
-    'show_status',
+    ('rtrue', False),
+    ('rfalse', False),
+    ('print', False),
+    ('print_ret', False),
+    ('nop', False),
+    ('save', False),
+    ('restore', False),
+    ('restart', False),
+    ('ret_popped', False),
+    ('pop', False),
+    ('quit', False),
+    ('new_line', False),
+    ('show_status', False),
     None,
-    'verify',
+    ('verify', False),
     None,
     None
 ]
 
 long_form_opcodes_v3 = [
     None,
-    'je',
-    'jl',
-    'jg',
-    'dec_chk',
-    'inc_chk',
-    'jin',
-    'test',
-    'or',
-    'and',
-    'test_attr',
-    'set_attr',
-    'clear_attr',
-    'store',
-    'insert_obj',
-    'loadw',
-    'loadb',
-    'get_prop',
-    'get_prop_addr',
-    'get_next_prop',
-    'add',
-    'sub',
-    'mul',
-    'div',
-    'mod',
+    ('je', False),
+    ('jl', False),
+    ('jg', False),
+    ('dec_chk', False),
+    ('inc_chk', False),
+    ('jin', False),
+    ('test', False),
+    ('or', True),
+    ('and', True),
+    ('test_attr', False),
+    ('set_attr', False),
+    ('clear_attr', False),
+    ('store', False),
+    ('insert_obj', False),
+    ('loadw', True),
+    ('loadb', True),
+    ('get_prop', True),
+    ('get_prop_addr', True),
+    ('get_next_prop', True),
+    ('add', True),
+    ('sub', True),
+    ('mul', True),
+    ('div', True),
+    ('mod', True),
     None,
     None,
     None,
@@ -284,18 +297,18 @@ long_form_opcodes_v3 = [
 ]
 
 variable_form_opcodes_v3 = [
-    'call',
-    'storew',
-    'storeb',
-    'put_prop',
-    'sread',
-    'print_char',
-    'print_num',
-    'random',
-    'push',
-    'pull',
-    'split_window',
-    'set_window',
+    ('call', True),
+    ('storew', False),
+    ('storeb', False),
+    ('put_prop', False),
+    ('sread', False),
+    ('print_char', False),
+    ('print_num', False),
+    ('random', True),
+    ('push', False),
+    ('pull', False),
+    ('split_window', False),
+    ('set_window', False),
     None,
     None,
     None,
@@ -303,9 +316,9 @@ variable_form_opcodes_v3 = [
     None,
     None,
     None,
-    'output_stream',
-    'input_stream',
-    'sound_effect',
+    ('output_stream', False),
+    ('input_stream', False),
+    ('sound_effect', False),
     None,
     None,
     None,
@@ -318,7 +331,7 @@ variable_form_opcodes_v3 = [
 
 
 class ZMachineOpcodeParserV3(ZMachineOpcodeParser):
-    def short_form_opcode_name(self, opcode_byte) -> Optional[str]:
+    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
         # If bits 5 and 4 are 0b11 then this is a 0-operand opcode, otherwise it's a 1-operand opcode
         # The opcode identifier itself is in the lower 4 bits
         if opcode_byte & 0b0011_0000 == 0b0011_0000:
@@ -326,11 +339,11 @@ class ZMachineOpcodeParserV3(ZMachineOpcodeParser):
         else:
             return short_form_1op_opcodes_v3[opcode_byte & 0x0f]
 
-    def long_form_opcode_name(self, opcode_byte) -> Optional[str]:
+    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
         # Opcode identifier in long form is in the lower 5 bits
         return long_form_opcodes_v3[opcode_byte & 0x1f]
 
-    def variable_form_opcode_name(self, opcode_byte) -> Optional[str]:
+    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool]]:
         # If the top bits are 0b110 then this is the variable form of a 2OP instruction
         if (opcode_byte & 0b1110_0000) == 0b1100_0000:
             # Opcode identifier is in lower 5 bits

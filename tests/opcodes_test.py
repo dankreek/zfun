@@ -24,7 +24,7 @@ def test_short_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(load.operands) == 1
     assert load.operand_types[0] == ZMachineOperandTypes.VARIABLE
     assert load.operands[0] == ZByte(b'\x00')
-    assert next_pc == 0x7d58 + 2
+    assert next_pc == 0x7d58 + 3
 
     # Zero operands
     print_ret, next_pc = opcodes_v3.parse(0x4fb1)
@@ -41,7 +41,7 @@ def test_long_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert len(add.operands) == 2
     assert add.operand_types == (ZMachineOperandTypes.VARIABLE, ZMachineOperandTypes.SMALL_CONSTANT)
     assert add.operands == (ZByte(b'\x01'), ZByte(b'\x02'))
-    assert next_pc == 0x4e83 + 3
+    assert next_pc == 0x4e83 + 4
 
 
 def test_variable_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
@@ -73,6 +73,6 @@ def test_variable_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
         ZWord(bytes([0x80, 0x10])),
         ZWord(bytes([0xff, 0xff]))
     )
-    assert next_pc == 0x4f05 + 8
+    assert next_pc == 0x4f05 + 9
 
 

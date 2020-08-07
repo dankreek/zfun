@@ -139,9 +139,24 @@ class ZMachineInterpreter(ABC):
             else:
                 self._operands = opcode_and_operands.operands
                 self._operand_types = opcode_and_operands.operand_types
+                is_call = opcode_and_operands.opcode.startswith('call')
+
+                # Call opcodes are handled a little different, they are passed the result var number so it can be stored on the stack
+                if is_call:
+                    args = [opcode_and_operands.result_var]
+                else:
+                    args = []
 
                 # Call the opcode's handler method
-                self.__getattribute__(opcode_method_name)()
+                res_val = self.__getattribute__(opcode_method_name)(*args)
+
+                if opcode_and_operands.result_var is not None and not is_call:
+                    if res_val is None:
+                        raise ZMachineRuntimeException(f'The {opcode_and_operands.opcode} opcode required a return value')
+                    elif not issubclass(type(res_val), ZData):
+                        raise ZMachineRuntimeException(f'Result returned from opcode {opcode_and_operands.opcode} is not of type ZData')
+
+                    self._variables.set(opcode_and_operands.result_var, res_val)
 
                 self._step_count += 1
         except (ZMachineExitException, ZMachineResetException) as e:
@@ -174,12 +189,6 @@ class ZMachineInterpreter(ABC):
         :return: The packed_address expanded to be the actual address.
         """
         pass
-
-    def _read_res_var(self) -> ZByte:
-        """ Read a single byte at the PC, advance the PC and return the result variable number. """
-        res_var = ZByte(self._memory, int(self._pc))
-        self._pc += 1
-        return res_var
 
     # XXX: Use ZData types internally
     def _read_branch(self) -> Tuple[bool, ZData]:
@@ -306,32 +315,27 @@ class ZMachineInterpreter(ABC):
         self._handle_branch(self._operand_val(0).int == 0, predicate_type, offset)
 
     def _opcode__get_sibling(self):
-        res_var = self._read_res_var()
         predicate_type, offset = self._read_branch()
 
         obj_num = self._operand_val(0)
         obj = self._obj_table.object(obj_num.unsigned_int)
-        self._variables.set(res_var, ZWord.from_unsigned_int(obj.sibling))
         self._handle_branch(obj.sibling != 0, predicate_type, offset)
+        return ZWord.from_unsigned_int(obj.sibling)
 
     def _opcode__get_child(self):
-        res_var = self._read_res_var()
         predicate_type, offset = self._read_branch()
 
         obj_num = self._operand_val(0)
         obj = self._obj_table.object(obj_num.unsigned_int)
-        self._variables.set(res_var, ZWord.from_unsigned_int(obj.child))
         self._handle_branch(obj.child != 0, predicate_type, offset)
+        return ZWord.from_unsigned_int(obj.child)
 
     def _opcode__get_parent(self):
-        res_var = self._read_res_var()
-
         obj_num = self._operand_val(0)
         obj = self._obj_table.object(obj_num.unsigned_int)
-        self._variables.set(res_var, ZWord.from_unsigned_int(obj.parent))
+        return ZWord.from_unsigned_int(obj.parent)
 
     def _opcode__get_prop_len(self):
-        res_var = self._read_res_var()
         prop_addr = self._operand_val(0).unsigned_int
 
         # TODO: Put this logic in the object table class?
@@ -348,7 +352,7 @@ class ZMachineInterpreter(ABC):
 
             prop_size = self._obj_table.property_at(prop_addr).size
 
-        self._variables.set(res_var, ZWord.from_unsigned_int(prop_size))
+        return ZWord.from_unsigned_int(prop_size)
 
     def _opcode__inc(self):
         var_num = ZByte(self._operand_val(0))
@@ -392,9 +396,8 @@ class ZMachineInterpreter(ABC):
         self._screen.print(string)
 
     def _opcode__load(self):
-        res_var = self._read_res_var()
         val = self._operand_val(0)
-        self._variables.set(res_var, val)
+        return val
 
     # 2OP instructions
 
@@ -463,17 +466,14 @@ class ZMachineInterpreter(ABC):
         self._handle_branch((bitmap & flags.unsigned_int) == flags, predicate_type, offset)
 
     def _opcode__or(self):
-        res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1).unsigned_int
-        self._variables.set(res_var, a | b)
+        return a | b
 
     def _opcode__and(self):
-        res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1).unsigned_int
-
-        self._variables.set(res_var, a & b)
+        return a & b
 
     def _opcode__test_attr(self):
         predicate_type, offset = self._read_branch()
@@ -505,31 +505,27 @@ class ZMachineInterpreter(ABC):
         self._obj_table.insert_child(obj_num, parent_obj_num)
 
     def _opcode__loadw(self):
-        res_var = self._read_res_var()
         arr_addr = self._operand_val(0).unsigned_int
         word_idx = self._operand_val(1).unsigned_int
         word_addr = arr_addr + (word_idx * 2)
         ret_word = ZWord(self._memory, word_addr)
-        self._variables.set(res_var, ret_word)
+        return ret_word
 
     def _opcode__loadb(self):
-        res_var = self._read_res_var()
         arr_addr = self._operand_val(0).unsigned_int
         byte_idx = self._operand_val(1).unsigned_int
         byte_addr = arr_addr + byte_idx
         ret_byte = ZByte(self._memory, byte_addr)
-        self._variables.set(res_var, ret_byte)
+        return ret_byte
 
     def _opcode__get_prop(self):
-        res_var = self._read_res_var()
         obj_num = self._operand_val(0).unsigned_int
         prop_num = self._operand_val(1).unsigned_int
         obj = self._obj_table.object(obj_num)
         prop_val = obj.properties.value_or_default(prop_num)
-        self._variables.set(res_var, prop_val)
+        return prop_val
 
     def _opcode__get_prop_addr(self):
-        res_var = self._read_res_var()
         obj_num = self._operand_val(0).unsigned_int
         prop_num = self._operand_val(1).unsigned_int
 
@@ -537,12 +533,11 @@ class ZMachineInterpreter(ABC):
         property_info = obj.properties.get(prop_num)
 
         if property_info is not None:
-            self._variables.set(res_var, ZWord.from_unsigned_int(property_info.value_address))
+            return ZWord.from_unsigned_int(property_info.value_address)
         else:
-            self._variables.set(res_var, ZWord.from_int(0))
+            return ZWord.from_int(0)
 
     def _opcode__get_next_prop(self):
-        res_var = self._read_res_var()
         obj_num = self._operand_val(0).unsigned_int
         prop_num = self._operand_val(1).unsigned_int
 
@@ -563,10 +558,9 @@ class ZMachineInterpreter(ABC):
         else:
             next_prop_num = next_prop.number
 
-        self._variables.set(res_var, ZWord.from_unsigned_int(next_prop_num))
+        return ZWord.from_unsigned_int(next_prop_num)
 
     def _opcode__add(self):
-        res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
 
@@ -576,10 +570,9 @@ class ZMachineInterpreter(ABC):
         if type(b) == ZByte:
             b = b.pad()
 
-        self._variables.set(res_var, a + b)
+        return a + b
 
     def _opcode__sub(self):
-        res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
 
@@ -589,10 +582,9 @@ class ZMachineInterpreter(ABC):
         if type(b) == ZByte:
             b = b.pad()
 
-        self._variables.set(res_var, a - b)
+        return a - b
 
     def _opcode__mul(self):
-        res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
 
@@ -602,10 +594,9 @@ class ZMachineInterpreter(ABC):
         if type(b) == ZByte:
             b = b.pad()
 
-        self._variables.set(res_var, a * b)
+        return a * b
 
     def _opcode__div(self):
-        res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
 
@@ -615,10 +606,9 @@ class ZMachineInterpreter(ABC):
         if type(b) == ZByte:
             b = b.pad()
 
-        self._variables.set(res_var, a // b)
+        return a // b
 
     def _opcode__mod(self):
-        res_var = self._read_res_var()
         a = self._operand_val(0)
         b = self._operand_val(1)
 
@@ -628,7 +618,7 @@ class ZMachineInterpreter(ABC):
         if type(b) == ZByte:
             b = b.pad()
 
-        self._variables.set(res_var, a % b)
+        return a % b
 
     # VAR OP instructions
 
@@ -676,7 +666,6 @@ class ZMachineInterpreter(ABC):
         self._screen.print(str(num.int))
 
     def _opcode__random(self):
-        res_var = self._read_res_var()
         rnd_range = self._operand_val(0).int
 
         if rnd_range == 0:
@@ -685,10 +674,10 @@ class ZMachineInterpreter(ABC):
         elif rnd_range < 0:
             # Seed generator with the operand value and return 0
             random.seed(rnd_range)
-            self._variables.set(res_var, ZWord.from_int(0))
+            return ZWord.from_int(0)
         else:
             rnd_num = ZWord.from_int(random.randint(1, rnd_range))
-            self._variables.set(res_var, rnd_num)
+            return rnd_num
 
     def _opcode__push(self):
         val = self._operand_val(0)
@@ -723,9 +712,8 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # This is technically an unsigned operation, but using signed numbers to
         # leverage Python's concept of an integer. Without using signed numbers
         # the result of the operation may not fit in 16 bits
-        res_var = self._read_res_var()
         val = self._operand_val(0)
-        self._variables.set(res_var, ~val)
+        return ~val
 
     def _opcode__save(self):
         # For V3 interpreters save the PC right before the branch info is read
@@ -809,7 +797,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # Technically supposed to verify the integrity of the game file, but not doing it
         pass
 
-    def _opcode__call(self):
+    def _opcode__call(self, res_var: ZByte):
         packed_address = ZWord(self._operand_val(0))
 
         # The first operand contains the packed address of the routine to call.
@@ -827,9 +815,6 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # The additional operands of the call opcode are set in the new local vars
         for local_var_num in range(len(self._operands) - 1):
             initial_local_var_values[local_var_num] = self._operand_val(local_var_num+1)
-
-        # The return value the variable number is stored in the byte after the operands
-        res_var = self._read_res_var()
 
         if routine_address == 0:
             self._variables.set(res_var, ZWord.from_int(0))
