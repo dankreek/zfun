@@ -757,7 +757,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             self._pc = header_chunk.header_info().restore_pc
 
             # Consume the branch byte(s) but no need to store them
-            _, next_pc = self._opcode_parser._read_label(int(self._pc))
+            _, next_pc = self._opcode_parser.read_label(int(self._pc))
             self._pc = PC(next_pc)
 
             self._stack.replace_frames(stacks_chunk.saved_stack().frames)

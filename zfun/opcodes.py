@@ -193,7 +193,7 @@ class ZMachineOpcodeParser(ABC):
         else:
             return OpcodeForm.LONG
 
-    def _read_label(self, address: int) -> Tuple[ZMachineLabel, int]:
+    def read_label(self, address: int) -> Tuple[ZMachineLabel, int]:
         """ Read a predicate type and offset for a branching instruction
 
         See section 4.7 of the Z-Machine Standards Document.
@@ -278,7 +278,7 @@ class ZMachineOpcodeParser(ABC):
             res_var = None
 
         if has_label:
-            label, next_pc = self._read_label(next_pc)
+            label, next_pc = self.read_label(next_pc)
         else:
             label = None
 
