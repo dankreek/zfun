@@ -165,11 +165,8 @@ class ZMachineInterpreter(ABC):
                 # Store the result variable in case any opcode methods need it (mostly call opcodes)
                 self._opcode = opcode
 
-                # XXX: Use the *operands form so that opcode method handler signatures reflect the number of operands they expect
                 # Call the opcode's handler method
-                res_val = self.__getattribute__(opcode_method_name)(operands)
-
-                # XXX: if this is a branching instruction, check if the branch handler was called?
+                res_val = self.__getattribute__(opcode_method_name)(*operands)
 
                 # call opcodes don't actually return their result, it is stored on the stack instead
                 if opcode.result_var is not None and not is_call:
@@ -247,69 +244,69 @@ class ZMachineInterpreter(ABC):
 
     # --- 0OP instructions ---
 
-    def _opcode__rtrue(self, _):
+    def _opcode__rtrue(self):
         next_pc, ret_var = self._stack.pop_routine_call()
         self._variables.set(ret_var, ZWord.from_int(1))
         self._pc = next_pc
 
-    def _opcode__rfalse(self, _):
+    def _opcode__rfalse(self):
         next_pc, ret_var = self._stack.pop_routine_call()
         self._variables.set(ret_var, ZWord.from_int(0))
         self._pc = next_pc
 
-    def _opcode__print(self, _):
+    def _opcode__print(self):
         self._screen.print(self._opcode.string)
 
-    def _opcode__print_ret(self, _):
+    def _opcode__print_ret(self):
         self._screen.print(self._opcode.string + '\n')
 
         next_pc, ret_var = self._stack.pop_routine_call()
         self._variables.set(ret_var, ZWord.from_int(1))
         self._pc = next_pc
 
-    def _opcode__nop(self, _):
+    def _opcode__nop(self):
         pass
 
-    def _opcode__restart(self, _):
+    def _opcode__restart(self):
         raise ZMachineResetException()
 
-    def _opcode__ret_popped(self, _):
+    def _opcode__ret_popped(self):
         ret_val = self._stack.pop()
         next_pc, ret_var = self._stack.pop_routine_call()
         self._variables.set(ret_var, ret_val)
         self._pc = next_pc
 
-    def _opcode__quit(self, _):
+    def _opcode__quit(self):
         # When the quit instruction is executed, simply raise the exit exception.
         raise ZMachineExitException()
 
-    def _opcode__new_line(self, _):
+    def _opcode__new_line(self):
         self._screen.print('\n')
 
     # 1OP instructions
 
-    def _opcode__jz(self, operands: Tuple[Operand]):
-        self._handle_branch(operands[0].value.int == 0)
+    def _opcode__jz(self, a: Operand):
+        self._handle_branch(a.value.int == 0)
 
-    def _opcode__get_sibling(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
+    def _opcode__get_sibling(self, obj_num: Operand):
+        obj_num = obj_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         self._handle_branch(obj.sibling != 0)
         return ZWord.from_unsigned_int(obj.sibling)
 
-    def _opcode__get_child(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
+    def _opcode__get_child(self, obj_num: Operand):
+        obj_num = obj_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         self._handle_branch(obj.child != 0)
         return ZWord.from_unsigned_int(obj.child)
 
-    def _opcode__get_parent(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
+    def _opcode__get_parent(self, obj_num: Operand):
+        obj_num = obj_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         return ZWord.from_unsigned_int(obj.parent)
 
-    def _opcode__get_prop_len(self, operands: Tuple[Operand]):
-        prop_addr = operands[0].value.unsigned_int
+    def _opcode__get_prop_len(self, prop_addr: Operand):
+        prop_addr = prop_addr.value.unsigned_int
 
         # TODO: Put this logic in the object table class?
         if prop_addr == 0:
@@ -327,53 +324,54 @@ class ZMachineInterpreter(ABC):
 
         return ZWord.from_unsigned_int(prop_size)
 
-    def _opcode__inc(self, operands: Tuple[Operand]):
-        var_num = ZByte(operands[0].value)
+    def _opcode__inc(self, var_num: Operand):
+        var_num = ZByte(var_num.value)
         cur_val = self._variables.val(var_num)
         self._variables.set(var_num, cur_val.inc())
 
-    def _opcode__dec(self, operands: Tuple[Operand]):
-        var_num = ZByte(operands[0].value)
+    def _opcode__dec(self, var_num: Operand):
+        var_num = ZByte(var_num.value)
         cur_val = self._variables.val(var_num)
         self._variables.set(var_num, cur_val.dec())
 
-    def _opcode__print_addr(self, operands: Tuple[Operand]):
-        zstr_addr = operands[0].value
-        string = z_string_to_str(self._memory, zstr_addr.unsigned_int, self._header.abbreviations_table_address)
+    def _opcode__print_addr(self, zstr_addr: Operand):
+        zstr_addr = zstr_addr.value.unsigned_int
+        string = z_string_to_str(self._memory, zstr_addr, self._header.abbreviations_table_address)
         self._screen.print(string)
 
-    def _opcode__remove_obj(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
+    def _opcode__remove_obj(self, obj_num: Operand):
+        obj_num = obj_num.value.unsigned_int
         self._obj_table.remove_obj_from_parent(obj_num)
 
-    def _opcode__print_obj(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
+    def _opcode__print_obj(self, obj_num: Operand):
+        obj_num = obj_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         self._screen.print(obj.name)
 
-    def _opcode__ret(self, operands: Tuple[Operand]):
-        ret_val = operands[0].value
+    def _opcode__ret(self, ret_val: Operand):
+        ret_val = ret_val.value
         next_pc, res_var = self._stack.pop_routine_call()
         self._variables.set(res_var, ret_val)
         self._pc = next_pc
 
-    def _opcode__jump(self, operands: Tuple[Operand]):
-        offset = operands[0].value
-        # The two bytes of operands need to be accounted for
-        self._pc += offset.dec(2).int
+    def _opcode__jump(self, offset: Operand):
+        offset_len = len(offset.value)
+        offset = offset.value
+        # Account for the size of the offset operand
+        self._pc += offset.dec(offset_len).int
 
-    def _opcode__print_paddr(self, operands: Tuple[Operand]):
-        packed_addr = ZWord(operands[0].value)
+    def _opcode__print_paddr(self, packed_addr: Operand):
+        packed_addr = ZWord(packed_addr.value)
         zstr_addr = self.expanded_packed_address(packed_addr)
         string = z_string_to_str(self._memory, zstr_addr, self._header.abbreviations_table_address)
         self._screen.print(string)
 
-    def _opcode__load(self, operands: Tuple[Operand]):
-        return operands[0].value
+    def _opcode__load(self, value: Operand):
+        return value.value
 
     # 2OP instructions
 
-    def _opcode__je(self, operands: Tuple[Operand]):
+    def _opcode__je(self, *operands: Operand):
         compare = operands[0].value
         operand_vals = [operands[i].value for i in range(1, len(operands))]
 
@@ -385,112 +383,102 @@ class ZMachineInterpreter(ABC):
 
         self._handle_branch(False)
 
-    def _opcode__jl(self, operands: Tuple[Operand]):
-        op_0 = operands[0].value.int
-        op_1 = operands[1].value.int
-        self._handle_branch(op_0 < op_1)
+    def _opcode__jl(self, a: Operand, b: Operand):
+        self._handle_branch(a.value.int < b.value.int)
 
-    def _opcode__jg(self, operands: Tuple[Operand]):
-        op_0 = operands[0].value.int
-        op_1 = operands[1].value.int
-        self._handle_branch(op_0 > op_1)
+    def _opcode__jg(self, a: Operand, b: Operand):
+        self._handle_branch(a.value.int > b.value.int)
 
-    def _opcode__dec_chk(self, operands: Tuple[Operand]):
-        var_num = ZByte(operands[0].literal_value)
-        cmp_val = operands[1].value
+    def _opcode__dec_chk(self, var_num: Operand, cmp_val: Operand):
+        var_num = ZByte(var_num.literal_value)
+        cmp_val = cmp_val.value
 
         # Read variable value, decrement it and write it back
         dec_val = self._variables.val(var_num).dec()
         self._variables.set(var_num, dec_val)
         self._handle_branch(dec_val.int < cmp_val.int)
 
-    def _opcode__inc_chk(self, operands: Tuple[Operand]):
-        var_num = ZByte(operands[0].literal_value)
-        cmp_val = operands[1].value
+    def _opcode__inc_chk(self, var_num: Operand, cmp_val: Operand):
+        var_num = ZByte(var_num.literal_value)
 
         # Read variable value, decrement it and write it back
         dec_val = self._variables.val(var_num).inc()
         self._variables.set(var_num, dec_val)
 
-        self._handle_branch(dec_val.int > cmp_val.int)
+        self._handle_branch(dec_val.int > cmp_val.value.int)
 
-    def _opcode__jin(self, operands: Tuple[Operand]):
-        child_obj_num = operands[0].value
-        parent_obj_num = operands[1].value.unsigned_int
-        obj = self._obj_table.object(child_obj_num.unsigned_int)
+    def _opcode__jin(self, child_obj_num: Operand, parent_obj_num: Operand):
+        child_obj_num = child_obj_num.value.unsigned_int
+        parent_obj_num = parent_obj_num.value.unsigned_int
+        obj = self._obj_table.object(child_obj_num)
         self._handle_branch(obj.parent == parent_obj_num)
 
-    def _opcode__test(self, operands: Tuple[Operand]):
-        bitmap = operands[0].value
-        flags = operands[1].value
+    def _opcode__test(self, bitmap: Operand, flags: Operand):
+        bitmap = bitmap.value
+        flags = flags.value
 
         if type(flags) == ZByte:
             flags = flags.pad()
 
         self._handle_branch((bitmap & flags.unsigned_int) == flags)
 
-    def _opcode__or(self, operands: Tuple[Operand]):
-        a = operands[0].value
-        b = operands[1].value.unsigned_int
-        return a | b
+    def _opcode__or(self, a: Operand, b: Operand):
+        return a.value | b.value.unsigned_int
 
-    def _opcode__and(self, operands: Tuple[Operand]):
-        a = operands[0].value
-        b = operands[1].value.unsigned_int
-        return a & b
+    def _opcode__and(self, a: Operand, b: Operand):
+        return a.value & b.value.unsigned_int
 
-    def _opcode__test_attr(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
-        attr_num = operands[1].value.unsigned_int
+    def _opcode__test_attr(self, obj_num: Operand, attr_num: Operand):
+        obj_num = obj_num.value.unsigned_int
+        attr_num = attr_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         self._handle_branch(obj.is_attribute_set(attr_num))
 
-    def _opcode__set_attr(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
-        attr_num = operands[1].value.unsigned_int
+    def _opcode__set_attr(self, obj_num: Operand, attr_num: Operand):
+        obj_num = obj_num.value.unsigned_int
+        attr_num = attr_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         obj.update_attribute(attr_num, True)
 
-    def _opcode__clear_attr(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
-        attr_num = operands[1].value.unsigned_int
+    def _opcode__clear_attr(self, obj_num: Operand, attr_num: Operand):
+        obj_num = obj_num.value.unsigned_int
+        attr_num = attr_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         obj.update_attribute(attr_num, False)
 
-    def _opcode__store(self, operands: Tuple[Operand]):
-        var_num = ZByte(operands[0].literal_value)
-        val = operands[1].value
-        self._variables.set(var_num, val)
+    def _opcode__store(self, var_num: Operand, val: Operand):
+        var_num = ZByte(var_num.literal_value)
+        self._variables.set(var_num, val.value)
 
-    def _opcode__insert_obj(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
-        parent_obj_num = operands[1].value.unsigned_int
+    def _opcode__insert_obj(self, obj_num: Operand, parent_obj_num: Operand):
+        obj_num = obj_num.value.unsigned_int
+        parent_obj_num = parent_obj_num.value.unsigned_int
         self._obj_table.insert_child(obj_num, parent_obj_num)
 
-    def _opcode__loadw(self, operands: Tuple[Operand]):
-        arr_addr = operands[0].value.unsigned_int
-        word_idx = operands[1].value.unsigned_int
+    def _opcode__loadw(self, arr_addr: Operand, word_idx: Operand):
+        arr_addr = arr_addr.value.unsigned_int
+        word_idx = word_idx.value.unsigned_int
         word_addr = arr_addr + (word_idx * 2)
         ret_word = ZWord(self._memory, word_addr)
         return ret_word
 
-    def _opcode__loadb(self, operands: Tuple[Operand]):
-        arr_addr = operands[0].value.unsigned_int
-        byte_idx = operands[1].value.unsigned_int
+    def _opcode__loadb(self, arr_addr: Operand, byte_addr: Operand):
+        arr_addr = arr_addr.value.unsigned_int
+        byte_idx = byte_addr.value.unsigned_int
         byte_addr = arr_addr + byte_idx
         ret_byte = ZByte(self._memory, byte_addr)
         return ret_byte
 
-    def _opcode__get_prop(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
-        prop_num = operands[1].value.unsigned_int
+    def _opcode__get_prop(self, obj_num: Operand, prop_num: Operand):
+        obj_num = obj_num.value.unsigned_int
+        prop_num = prop_num.value.unsigned_int
         obj = self._obj_table.object(obj_num)
         prop_val = obj.properties.value_or_default(prop_num)
         return prop_val
 
-    def _opcode__get_prop_addr(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
-        prop_num = operands[1].value.unsigned_int
+    def _opcode__get_prop_addr(self, obj_num: Operand, prop_num: Operand):
+        obj_num = obj_num.value.unsigned_int
+        prop_num = prop_num.value.unsigned_int
 
         obj = self._obj_table.object(obj_num)
         property_info = obj.properties.get(prop_num)
@@ -500,9 +488,9 @@ class ZMachineInterpreter(ABC):
         else:
             return ZWord.from_int(0)
 
-    def _opcode__get_next_prop(self, operands: Tuple[Operand]):
-        obj_num = operands[0].value.unsigned_int
-        prop_num = operands[1].value.unsigned_int
+    def _opcode__get_next_prop(self, obj_num: Operand, prop_num: Operand):
+        obj_num = obj_num.value.unsigned_int
+        prop_num = prop_num.value.unsigned_int
 
         obj = self._obj_table.object(obj_num)
 
@@ -523,69 +511,34 @@ class ZMachineInterpreter(ABC):
 
         return ZWord.from_unsigned_int(next_prop_num)
 
-    def _opcode__add(self, operands: Tuple[Operand]):
-        a = operands[0].value
-        b = operands[1].value
-
-        if type(a) == ZByte:
-            a = a.pad()
-
-        if type(b) == ZByte:
-            b = b.pad()
-
+    def _opcode__add(self, a: Operand, b: Operand):
+        a = a.value if type(a.value) == ZWord else a.value.pad()
+        b = b.value if type(b.value) == ZWord else b.value.pad()
         return a + b
 
-    def _opcode__sub(self, operands: Tuple[Operand]):
-        a = operands[0].value
-        b = operands[1].value
-
-        if type(a) == ZByte:
-            a = a.pad()
-
-        if type(b) == ZByte:
-            b = b.pad()
-
+    def _opcode__sub(self, a: Operand, b: Operand):
+        a = a.value if type(a.value) == ZWord else a.value.pad()
+        b = b.value if type(b.value) == ZWord else b.value.pad()
         return a - b
 
-    def _opcode__mul(self, operands: Tuple[Operand]):
-        a = operands[0].value
-        b = operands[1].value
-
-        if type(a) == ZByte:
-            a = a.pad()
-
-        if type(b) == ZByte:
-            b = b.pad()
-
+    def _opcode__mul(self, a: Operand, b: Operand):
+        a = a.value if type(a.value) == ZWord else a.value.pad()
+        b = b.value if type(b.value) == ZWord else b.value.pad()
         return a * b
 
-    def _opcode__div(self, operands: Tuple[Operand]):
-        a = operands[0].value
-        b = operands[1].value
-
-        if type(a) == ZByte:
-            a = a.pad()
-
-        if type(b) == ZByte:
-            b = b.pad()
-
+    def _opcode__div(self, a: Operand, b: Operand):
+        a = a.value if type(a.value) == ZWord else a.value.pad()
+        b = b.value if type(b.value) == ZWord else b.value.pad()
         return a // b
 
-    def _opcode__mod(self, operands: Tuple[Operand]):
-        a = operands[0].value
-        b = operands[1].value
-
-        if type(a) == ZByte:
-            a = a.pad()
-
-        if type(b) == ZByte:
-            b = b.pad()
-
+    def _opcode__mod(self, a: Operand, b: Operand):
+        a = a.value if type(a.value) == ZWord else a.value.pad()
+        b = b.value if type(b.value) == ZWord else b.value.pad()
         return a % b
 
     # VAR OP instructions
 
-    def _opcode__storew(self, operands: Tuple[Operand]):
+    def _opcode__storew(self, *operands: Operand):
         arr_addr = operands[0].value.unsigned_int
         word_offset = operands[1].value.unsigned_int * 2
         value = operands[2].value
@@ -600,7 +553,7 @@ class ZMachineInterpreter(ABC):
 
         value.write(self._memory, address)
 
-    def _opcode__storeb(self, operands: Tuple[Operand]):
+    def _opcode__storeb(self, *operands: Operand):
         arr_addr = operands[0].value.unsigned_int
         byte_offset = operands[1].value.unsigned_int * 2
         value = operands[2].value
@@ -612,7 +565,7 @@ class ZMachineInterpreter(ABC):
 
         value.write(self._memory, address)
 
-    def _opcode__put_prop(self, operands: Tuple[Operand]):
+    def _opcode__put_prop(self, *operands: Operand):
         obj_num = operands[0].value.unsigned_int
         prop_num = operands[1].value.unsigned_int
         value = operands[2].value
@@ -620,15 +573,15 @@ class ZMachineInterpreter(ABC):
         obj = self._obj_table.object(obj_num)
         obj.properties.set(prop_num, value)
 
-    def _opcode__print_char(self, operands: Tuple[Operand]):
+    def _opcode__print_char(self, *operands: Operand):
         char = operands[0].value.unsigned_int
         self._screen.print(chr(char))
 
-    def _opcode__print_num(self, operands: Tuple[Operand]):
+    def _opcode__print_num(self, *operands: Operand):
         num = operands[0].value.int
         self._screen.print(str(num))
 
-    def _opcode__random(self, operands: Tuple[Operand]):
+    def _opcode__random(self, *operands: Operand):
         rnd_range = operands[0].value.int
 
         if rnd_range == 0:
@@ -642,11 +595,11 @@ class ZMachineInterpreter(ABC):
             rnd_num = ZWord.from_int(random.randint(1, rnd_range))
             return rnd_num
 
-    def _opcode__push(self, operands: Tuple[Operand]):
+    def _opcode__push(self, *operands: Operand):
         val = operands[0].value
         self._stack.push(val)
 
-    def _opcode__sound_effect(self, operands: Tuple[Operand]):
+    def _opcode__sound_effect(self, *operands: Operand):
         # TODO #11: Figure out how routing out sound is going to work
         pass
 
@@ -671,14 +624,10 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
     # Version 3 specific opcodes
 
-    def _opcode__not(self, operands: Tuple[Operand]):
-        # This is technically an unsigned operation, but using signed numbers to
-        # leverage Python's concept of an integer. Without using signed numbers
-        # the result of the operation may not fit in 16 bits
-        val = operands[0].value
-        return ~val
+    def _opcode__not(self, val: Operand):
+        return ~val.value
 
-    def _opcode__save(self, _):
+    def _opcode__save(self):
         # For V3 interpreters save the PC right before the branch info is read
         save_pc = self._pc - self._opcode.label.size
 
@@ -692,7 +641,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         success = self._save_restore.save(ifzs.bytes())
         self._handle_branch(success)
 
-    def _opcode__restore(self, _):
+    def _opcode__restore(self):
         restore_data = self._save_restore.restore()
 
         if restore_data is None:
@@ -748,17 +697,17 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             self._stack.replace_frames(stacks_chunk.saved_stack().frames)
             self._memory[:len(saved_memory)] = saved_memory
 
-    def _opcode__pop(self, _):
+    def _opcode__pop(self):
         self._stack.pop()
 
-    def _opcode__show_status(self, _):
+    def _opcode__show_status(self):
         self._screen.update_status()
 
-    def _opcode__verify(self, _):
+    def _opcode__verify(self):
         # Technically supposed to verify the integrity of the game file, but not doing it
         pass
 
-    def _opcode__call(self, operands: Tuple[Operand]):
+    def _opcode__call(self, *operands: Operand):
         packed_address = ZWord(operands[0].value)
 
         # The first operand contains the packed address of the routine to call.
@@ -786,7 +735,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             # The address of the first instruction is directly after all the parameters
             self._pc = PC(routine_address + 1 + (local_vars_count * 2))
 
-    def _opcode__sread(self, operands: Tuple[Operand]):
+    def _opcode__sread(self, *operands: Operand):
         text_buffer_address = operands[0].value.unsigned_int
         parse_buffer_address = operands[1].value.unsigned_int
 
@@ -807,7 +756,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # tokenize
         tokenize(self._memory, self._dictionary, text_buffer_address, parse_buffer_address)
 
-    def _opcode__pull(self, operands: Tuple[Operand]):
+    def _opcode__pull(self, *operands: Operand):
         res_var = ZByte(operands[0].value)
         val = self._stack.pop()
         self._variables.set(res_var, val)
