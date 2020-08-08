@@ -31,7 +31,7 @@ def test_short_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):
     assert print_ret.name == 'print_ret'
     assert print_ret.operand_types is None
     assert print_ret.operands is None
-    assert next_pc == 0x4fb2
+    assert next_pc == 0x4fc4
 
 
 def test_long_form_opcodes(opcodes_v3: ZMachineOpcodeParserV3):

@@ -7,14 +7,14 @@ from .dictionary import ZMachineDictionary
 from .exc import ZMachineIllegalOperation, ZMachineException
 from .header import ZCodeHeader
 from .input import ZMachineInput
-from .opcodes import ZMachineOpcodeParserV3, ZMachineOperandTypes, ZMachineLabel
+from .opcodes import ZMachineOpcodeParserV3, ZMachineOperandTypes, ZMachineOpcodeInfo
 from .objects import ZMachineObjectTable
 from .quetzal import HeaderQuetzalChunk, UMemQuetzalChunk, CMemQuetzalChunk, StacksQuetzalChunk, IFZSContainer, QuetzalReadError, IFZSReadError
 from .screen import ZMachineScreen
 from .stack import ZMachineStack
 from .tokenize import tokenize
 from .variables import ZMachineVariables
-from .z_string import z_string_to_str, z_string_to_str_with_next
+from .z_string import z_string_to_str
 
 
 class ZMachineSaveRestoreHandler(ABC):
@@ -70,11 +70,8 @@ class ZMachineInterpreter(ABC):
         self._save_restore = save_restore
         self._step_count = 0
 
-        # The result variable for the currently executing opcode method
-        self._res_var: Optional[ZByte] = None
-
-        # The branch label for the current executing opcode method
-        self._branch_label: Optional[ZMachineLabel] = None
+        # The current opcode being executed
+        self._opcode: Optional[ZMachineOpcodeInfo] = None
 
         self._stack = ZMachineStack()
         self._pc: PC = PC(header.initial_pc_value)
@@ -166,8 +163,7 @@ class ZMachineInterpreter(ABC):
                 is_call = opcode.name.startswith('call')
 
                 # Store the result variable in case any opcode methods need it (mostly call opcodes)
-                self._res_var = opcode.result_var
-                self._branch_label = opcode.label
+                self._opcode = opcode
 
                 # XXX: Use the *operands form so that opcode method handler signatures reflect the number of operands they expect
                 # Call the opcode's handler method
@@ -184,7 +180,7 @@ class ZMachineInterpreter(ABC):
 
                     self._variables.set(opcode.result_var, res_val)
 
-                self._res_var = None
+                self._opcode = None
                 self._step_count += 1
 
         except (ZMachineExitException, ZMachineResetException) as e:
@@ -218,15 +214,6 @@ class ZMachineInterpreter(ABC):
         """
         pass
 
-    def _read_string_literal(self) -> str:
-        """ Reads a literal string after and instruction and increment PC
-
-        :return: String read after current instruction
-        """
-        string, next_pc = z_string_to_str_with_next(self._memory, int(self._pc), self._header.abbreviations_table_address)
-        self._pc = PC(next_pc)
-        return string
-
     def _operand_val(self, operand_type: ZMachineOperandTypes, operand_literal_val: ZData) -> ZData:
         """ Return the value of an operand.
 
@@ -243,17 +230,17 @@ class ZMachineInterpreter(ABC):
             return operand_literal_val
 
     def _handle_branch(self, branch_pred: bool):
-        if self._branch_label is None:
+        if self._opcode.label is None:
             raise ZMachineRuntimeException('no branch info for opcode')
 
-        if branch_pred == self._branch_label.predicate_type:
+        if branch_pred == self._opcode.label.predicate_type:
             # In the case where an offset is 0 or 1, return false or true from the current routine
-            if (self._branch_label.offset == 0) or (self._branch_label.offset == 1):
+            if (self._opcode.label.offset == 0) or (self._opcode.label.offset == 1):
                 ret_pc, res_var = self._stack.pop_routine_call()
-                self._variables.set(res_var, ZWord.from_int(self._branch_label.offset))
+                self._variables.set(res_var, ZWord.from_int(self._opcode.label.offset))
                 self._pc = ret_pc
             else:
-                self._pc = self._pc + (self._branch_label.offset - 2)
+                self._pc = self._pc + (self._opcode.label.offset - 2)
 
     # -------- Instructions are all defined below and executed via reflection --------
     # Opcode method name convention is '_opcode__' + name of opcode
@@ -271,12 +258,10 @@ class ZMachineInterpreter(ABC):
         self._pc = next_pc
 
     def _opcode__print(self, _):
-        string = self._read_string_literal()
-        self._screen.print(string)
+        self._screen.print(self._opcode.string)
 
     def _opcode__print_ret(self, _):
-        string = self._read_string_literal()
-        self._screen.print(string + '\n')
+        self._screen.print(self._opcode.string + '\n')
 
         next_pc, ret_var = self._stack.pop_routine_call()
         self._variables.set(ret_var, ZWord.from_int(1))
@@ -695,7 +680,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
     def _opcode__save(self, _):
         # For V3 interpreters save the PC right before the branch info is read
-        save_pc = self._pc - self._branch_label.size
+        save_pc = self._pc - self._opcode.label.size
 
         chunks = [
             HeaderQuetzalChunk.create(self._header, save_pc),
@@ -793,10 +778,10 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             initial_local_var_values[local_var_num] = operands[local_var_num+1].value
 
         if routine_address == 0:
-            self._variables.set(self._res_var, ZWord.from_int(0))
+            self._variables.set(self._opcode.result_var, ZWord.from_int(0))
         else:
             # Add new frame to the stack for this routine
-            self._stack.push_routine_call(self._pc, local_vars_count, self._res_var, *initial_local_var_values)
+            self._stack.push_routine_call(self._pc, local_vars_count, self._opcode.result_var, *initial_local_var_values)
 
             # The address of the first instruction is directly after all the parameters
             self._pc = PC(routine_address + 1 + (local_vars_count * 2))
