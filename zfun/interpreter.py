@@ -1,6 +1,6 @@
 import random
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, NamedTuple
+from typing import Tuple, Optional, NamedTuple, Iterable
 
 from .data_structures import ZWord, ZByte, ZData, PC
 from .dictionary import ZMachineDictionary
@@ -61,7 +61,11 @@ class Operand(NamedTuple):
 
 
 class ZMachineInterpreter(ABC):
+
     def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput, save_restore: ZMachineSaveRestoreHandler):
+        assert header.version in self.versions_supported, \
+            f'Z-code is version {header.version} but interpreter only supports: {self.versions_supported}'
+
         self._header = header
         self._memory = memory
         self._original_memory = bytes(memory)
@@ -89,6 +93,14 @@ class ZMachineInterpreter(ABC):
         # for the opcode handling methods.
         self._operands = Optional[Tuple[bytes]]
         self._operand_types = Optional[Tuple[ZMachineOperandTypes]]
+
+    @property
+    @abstractmethod
+    def versions_supported(self) -> Iterable[int]:
+        """
+        :return: Tuple of Z-Machine versions supported by the interpreter implementation
+        """
+        pass
 
     @abstractmethod
     def initialize(self):
@@ -203,8 +215,18 @@ class ZMachineInterpreter(ABC):
 
     @staticmethod
     @abstractmethod
-    def expanded_packed_address(packed_address: ZWord) -> int:
-        """ Expand a packed address for the implementing version of the interpreter.
+    def expanded_packed_routine_address(packed_address: ZWord) -> int:
+        """ Expand a packed routine address for the implementing version of the interpreter.
+
+        :param packed_address: Address in packed form.
+        :return: The packed_address expanded to be the actual address.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def expanded_packed_string_address(packed_address: ZWord) -> int:
+        """ Expand a packed string address for the implementing version of the interpreter.
 
         :param packed_address: Address in packed form.
         :return: The packed_address expanded to be the actual address.
@@ -362,7 +384,7 @@ class ZMachineInterpreter(ABC):
 
     def _opcode__print_paddr(self, packed_addr: Operand):
         packed_addr = ZWord(packed_addr.value)
-        zstr_addr = self.expanded_packed_address(packed_addr)
+        zstr_addr = self.expanded_packed_string_address(packed_addr)
         string = z_string_to_str(self._memory, zstr_addr, self._header.abbreviations_table_address)
         self._screen.print(string)
 
@@ -606,10 +628,6 @@ class ZMachineInterpreter(ABC):
 
 class ZMachineInterpreterV3(ZMachineInterpreter):
 
-    def __init__(self, header: ZCodeHeader, memory: memoryview, screen: ZMachineScreen, keyboard: ZMachineInput, save_restore: ZMachineSaveRestoreHandler):
-        assert header.version == 3, 'invalid z-code version for version interpreter'
-        super().__init__(header, memory, screen, keyboard, save_restore)
-
     def terminate(self):
         super().terminate()
 
@@ -618,9 +636,17 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         self._header.is_file_split = False
         self._header.is_transcription_on = False
 
+    @property
+    def versions_supported(self) -> Iterable[int]:
+        return 1, 2, 3
+
     @staticmethod
-    def expanded_packed_address(packed_address: ZWord) -> int:
-        return packed_address.unsigned_int << 1
+    def expanded_packed_routine_address(packed_address: ZWord) -> int:
+        return packed_address.unsigned_int * 2
+
+    @staticmethod
+    def expanded_packed_string_address(packed_address: ZWord) -> int:
+        return packed_address.unsigned_int * 2
 
     # Version 3 specific opcodes
 
@@ -711,7 +737,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         packed_address = ZWord(operands[0].value)
 
         # The first operand contains the packed address of the routine to call.
-        routine_address = self.expanded_packed_address(packed_address)
+        routine_address = self.expanded_packed_routine_address(packed_address)
 
         # The first byte of the routine header contains the number of local variables the routine has
         local_vars_count = self._memory[routine_address]
@@ -778,6 +804,20 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         raise NotImplemented('Still not sure how this works in V3')
 
 
+class ZMachineInterpreterV4(ZMachineInterpreterV3):
+
+    def versions_supported(self) -> Iterable[int]:
+        return (4,)
+
+    @staticmethod
+    def expanded_packed_routine_address(packed_address: ZWord) -> int:
+        return packed_address.unsigned_int * 4
+
+    @staticmethod
+    def expanded_packed_string_address(packed_address: ZWord) -> int:
+        return packed_address.unsigned_int * 4
+
+
 class ZMachineExitException(ZMachineException):
     """ Raised then the z-machine `quit` instruction is executed. """
     pass
@@ -814,3 +854,4 @@ class ZMachineRuntimeException(ZMachineException):
     @property
     def instruction_pc(self) -> PC:
         return self._instruction_pc
+

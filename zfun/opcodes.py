@@ -1,3 +1,4 @@
+from copy import copy
 from enum import Enum
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Union, Tuple, List, Optional
@@ -51,7 +52,7 @@ class ZMachineOpcodeInfo(NamedTuple):
     """ Predicate type and offset for a branching instruction, if applicable """
     label: Optional[ZMachineLabel]
 
-    """ Parsed string literal for instructions which precede string literals """
+    """ Parsed string literal for instructions which precede z-string literals """
     string: Optional[str]
 
     """ Raw data for opcode and operands """
@@ -60,9 +61,17 @@ class ZMachineOpcodeInfo(NamedTuple):
 
 class ZMachineOpcodeParser(ABC):
 
-    def __init__(self, memory: Union[bytes, memoryview]):
+    def __init__(self, memory: Union[bytes, memoryview],
+                 short_0op_opcodes: List[Tuple[str, bool, bool, bool]],
+                 short_1op_opcodes: List[Tuple[str, bool, bool, bool]],
+                 long_opcodes: List[Tuple[str, bool, bool, bool]],
+                 variable_opcodes: List[Tuple[str, bool, bool, bool]]):
         self._memory = memory
         self._header = get_header(memory)
+        self._short_0op = short_0op_opcodes
+        self._short_1op = short_1op_opcodes
+        self._long_opcodes = long_opcodes
+        self._var_opcodes = variable_opcodes
 
     def _parse_short_operand_types(self, opcode_byte) -> Optional[Tuple[ZMachineOperandTypes]]:
         # The single operand type is stored in bits 5 and 4 and correspond the values of OperandTypes
@@ -114,14 +123,11 @@ class ZMachineOpcodeParser(ABC):
         operand_types = (first_operand_type, second_operand_type)
         return operand_types
 
-    def _parse_variable_operand_types(self, types_addr: int, max_type_bytes: int = 1):
+    def _parse_variable_operand_types(self, types_addr: int, num_type_bytes: int = 1):
         next_pc = types_addr
 
-        # Loop until the types list ends with OMITTED
-        operand_types = self._variable_types_in_byte(self._memory[next_pc])
-        next_pc += 1
-
-        while operand_types[-1] != ZMachineOperandTypes.OMITTED and ((next_pc - types_addr) < max_type_bytes):
+        operand_types = []
+        for address in range(num_type_bytes):
             operand_types += self._variable_types_in_byte(self._memory[next_pc])
             next_pc += 1
 
@@ -129,31 +135,40 @@ class ZMachineOpcodeParser(ABC):
         types_list = [op_type for op_type in operand_types if op_type != ZMachineOperandTypes.OMITTED]
         return tuple(types_list), next_pc
 
-    @abstractmethod
-    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
+    def _short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
         """
 
         :param opcode_byte:
         :return: Tuple of opcode name, and bool indicating if opcode has a result variable, a label, or a string literal. None if opcode not supported
         """
-        pass
+        # If bits 5 and 4 are 0b11 then this is a 0-operand opcode, otherwise it's a 1-operand opcode
+        # The opcode identifier itself is in the lower 4 bits
+        if opcode_byte & 0b0011_0000 == 0b0011_0000:
+            return self._short_0op[opcode_byte & 0x0f]
+        else:
+            return self._short_1op[opcode_byte & 0x0f]
 
-    @abstractmethod
-    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
+    def _long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
         """
 
         :param opcode_byte:
         :return: Tuple of opcode name, and bool indicating if opcode has a result variable, a label, or a string literal. None if opcode not supported
         """
-        pass
+        # Opcode identifier in long form is in the lower 5 bits
+        return self._long_opcodes[opcode_byte & 0x1f]
 
-    @abstractmethod
-    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
+    def _variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
         """
+
         :param opcode_byte:
         :return: Tuple of opcode name, and bool indicating if opcode has a result variable, a label, or a string literal. None if opcode not supported
         """
-        pass
+        # If the top bits are 0b110 then this is the variable form of a 2OP instruction
+        if (opcode_byte & 0b1110_0000) == 0b1100_0000:
+            # Opcode identifier is in lower 5 bits
+            return self._long_opcodes[opcode_byte & 0x1f]
+        else:
+            return self._var_opcodes[opcode_byte & 0x1f]
 
     def _read_operands(self, operands_addr: int, operand_types: Tuple[ZMachineOperandTypes]) -> Tuple[Optional[Tuple[ZData]], int]:
         """ Read the operands at the given address as the specified types.
@@ -254,26 +269,34 @@ class ZMachineOpcodeParser(ABC):
 
         next_pc = address + 1
         if opcode_form == OpcodeForm.VARIABLE:
-            opcode_info = self.variable_form_opcode(opcode_byte)
+            opcode_info = self._variable_form_opcode(opcode_byte)
             # Variable operand types are stored in the byte/bytes following the opcode
-            operand_types, next_pc = self._parse_variable_operand_types(next_pc, 1)
+
+            if opcode_info[0] in ['call_vn2', 'call_vs2']:
+                # The call_vn2 and call_vs2 operands are special "double variable" types which have 2 operand type bytes
+                num_type_bytes = 2
+            else:
+                # All other variable opcodes have 1 byte of types
+                num_type_bytes = 1
+
+            operand_types, next_pc = self._parse_variable_operand_types(next_pc, num_type_bytes)
         elif opcode_form == OpcodeForm.SHORT:
-            opcode_info = self.short_form_opcode(opcode_byte)
+            opcode_info = self._short_form_opcode(opcode_byte)
             # The short operand type is stored in the opcode byte itself
             operand_types = self._parse_short_operand_types(opcode_byte)
         elif opcode_form == OpcodeForm.LONG:
-            opcode_info = self.long_form_opcode(opcode_byte)
+            opcode_info = self._long_form_opcode(opcode_byte)
             # Long form operand types are also stored in the opcode byte
             operand_types = self._parse_long_operand_types(opcode_byte)
         else:
             raise NotImplemented('Extended opcodes are not currently implemented')
 
-        operands, next_pc = self._read_operands(next_pc, operand_types)
-
         if opcode_info is None:
             raise ZMachineOpcodeParsingError('opcode not found')
         else:
             opcode_name, has_result, has_label, has_str = opcode_info
+
+        operands, next_pc = self._read_operands(next_pc, operand_types)
 
         # Read in the result variable number and advance the PC
         if has_result:
@@ -346,7 +369,7 @@ short_form_0op_opcodes_v3 = [
     None
 ]
 
-long_form_opcodes_v3 = [
+long_opcodes_v3 = [
     None,
     ('je', False, True, False),
     ('jl', False, True, False),
@@ -382,7 +405,8 @@ long_form_opcodes_v3 = [
     None
 ]
 
-variable_form_opcodes_v3 = [
+# name, has_result, has_label, has_z_string
+variable_opcodes_v3 = [
     ('call', True, False, False),
     ('storew', False, False, False),
     ('storeb', False, False, False),
@@ -415,25 +439,37 @@ variable_form_opcodes_v3 = [
     None
 ]
 
+short_form_0op_opcodes_v4 = copy(short_form_0op_opcodes_v3)
+short_form_0op_opcodes_v4[0x05] = ('save', True, False, False)
+short_form_0op_opcodes_v4[0x06] = ('restore', True, False, False)
+short_form_0op_opcodes_v4[0x0c] = None
+
+short_form_1op_opcodes_v4 = copy(short_form_1op_opcodes_v3)
+short_form_1op_opcodes_v4[0x08] = ('call_1s', True, False, False)
+
+long_opcodes_v4 = copy(long_opcodes_v3)
+long_opcodes_v4[0x19] = ('call_2s', True, False, False)
+
+variable_opcodes_v4 = copy(variable_opcodes_v3)
+variable_opcodes_v4[0x00] = ('call_vs', True, False, False)
+variable_opcodes_v4[0x0c] = ('call_vs2', True, False, False)
+variable_opcodes_v4[0x0d] = ('erase_window', False, False, False)
+variable_opcodes_v4[0x0e] = ('erase_line', False, False, False)
+variable_opcodes_v4[0x0f] = ('set_cursor', False, False, False)
+variable_opcodes_v4[0x10] = ('get_cursor', False, False, False)
+variable_opcodes_v4[0x11] = ('set_text_style', False, False, False)
+variable_opcodes_v4[0x12] = ('buffer_mode', False, False, False)
+variable_opcodes_v4[0x16] = ('read_char', True, False, False)
+variable_opcodes_v4[0x17] = ('scan_table', True, False, False)
+
 
 class ZMachineOpcodeParserV3(ZMachineOpcodeParser):
-    def short_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
-        # If bits 5 and 4 are 0b11 then this is a 0-operand opcode, otherwise it's a 1-operand opcode
-        # The opcode identifier itself is in the lower 4 bits
-        if opcode_byte & 0b0011_0000 == 0b0011_0000:
-            return short_form_0op_opcodes_v3[opcode_byte & 0x0f]
-        else:
-            return short_form_1op_opcodes_v3[opcode_byte & 0x0f]
 
-    def long_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
-        # Opcode identifier in long form is in the lower 5 bits
-        return long_form_opcodes_v3[opcode_byte & 0x1f]
+    def __init__(self, memory: Union[bytes, memoryview]):
+        super().__init__(memory, short_form_0op_opcodes_v3, short_form_1op_opcodes_v3, long_opcodes_v3, variable_opcodes_v3)
 
-    def variable_form_opcode(self, opcode_byte) -> Optional[Tuple[str, bool, bool, bool]]:
-        # If the top bits are 0b110 then this is the variable form of a 2OP instruction
-        if (opcode_byte & 0b1110_0000) == 0b1100_0000:
-            # Opcode identifier is in lower 5 bits
-            return long_form_opcodes_v3[opcode_byte & 0x1f]
-        else:
-            return variable_form_opcodes_v3[opcode_byte & 0x1f]
 
+class ZMachineOpcodeParserV4(ZMachineOpcodeParser):
+
+    def __init__(self, memory: Union[bytes, memoryview]):
+        super().__init__(memory, short_form_0op_opcodes_v4, short_form_1op_opcodes_v4, long_opcodes_v4, variable_opcodes_v4)
