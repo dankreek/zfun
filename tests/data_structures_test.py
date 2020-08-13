@@ -294,3 +294,33 @@ def test_zword_to_zbyte_math():
         ZWord.from_int(4) / ZByte.from_int(8)
 
 
+def test_zword_find_in_memory():
+    haystack = b'0123456789abcdef'
+
+    # Find words without a record length
+    assert None == ZWord(b'gg').find(haystack, 0, len(haystack)), 'None should have been returned for unfound data'
+    assert 0 == ZWord(b'01').find(haystack, 0, len(haystack)), 'Did not find data at beginning of memory'
+    assert None == ZWord(b'12').find(haystack, 0, len(haystack)), 'Should not have found data off of 2 byte offset'
+    assert 2 == ZWord(b'23').find(haystack, 0, len(haystack)), 'Did not find data in middle of memory'
+    assert 14 == ZWord(b'ef').find(haystack, 0, len(haystack)), 'Did not find data at end of memory'
+
+    # Find words with a record length
+    assert None == ZWord(b'gg').find(haystack, 0, len(haystack), 3), 'Should not have found missing data'
+    assert 0 == ZWord(b'01').find(haystack, 0, len(haystack), 3), 'Should have found data at start of memory'
+    assert 3 == ZWord(b'34').find(haystack, 0, len(haystack), 3), 'Should have found data in middle of memory with 3 byte record length'
+    assert None == ZWord(b'23').find(haystack, 0, len(haystack), 3), 'Should not have found bytes off of record length boundary'
+    assert 12 == ZWord(b'cd').find(haystack, 0, len(haystack), 3), 'Did not find data at end of memory'
+
+    # Find bytes without a record length
+    assert None == ZByte(b'g').find(haystack, 0, len(haystack)), 'None should have been returned for unfound data'
+    assert 0 == ZByte(b'0').find(haystack, 0, len(haystack)), 'Did not find data at beginning of memory'
+    assert 2 == ZByte(b'2').find(haystack, 0, len(haystack)), 'Did not find data in middle of memory'
+    assert 15 == ZByte(b'f').find(haystack, 0, len(haystack)), 'Did not find data at end of memory'
+
+    # Find bytes with a record length
+    assert None == ZByte(b'g').find(haystack, 0, len(haystack), 3), 'Should not have found missing data'
+    assert 0 == ZByte(b'0').find(haystack, 0, len(haystack), 3), 'Should have found data at start of memory'
+    assert 3 == ZByte(b'3').find(haystack, 0, len(haystack), 3), 'Should have found data in middle of memory with 3 byte record length'
+    assert None == ZByte(b'2').find(haystack, 0, len(haystack), 3), 'Should not have found bytes off of record length boundary'
+    assert 12 == ZByte(b'c').find(haystack, 0, len(haystack), 3), 'Did not find data at end of memory'
+

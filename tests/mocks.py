@@ -1,5 +1,7 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+from datetime import timedelta
 from zfun import ZMachineScreen, ZMachineInterpreter, ZMachineInput
+from zfun.screen import TextStyle
 
 
 class MockScreen(ZMachineScreen):
@@ -33,6 +35,37 @@ class MockScreen(ZMachineScreen):
         """ List of text passed to the screen via the print() method. """
         return self._printed_data
 
+    def set_upper_window_height(self, height: int):
+        pass
+
+    def unsplit_screen(self):
+        pass
+
+    def set_style(self, style: TextStyle):
+        pass
+
+    def add_style(self, style: TextStyle):
+        pass
+
+    @property
+    def cursor_location(self) -> Tuple[int, int]:
+        return 0, 0
+
+    def set_cursor_location(self, line_num: int, column_num: int):
+        pass
+
+    def clear_all_windows(self):
+        pass
+
+    def clear_window(self, window_num: int):
+        pass
+
+    def erase_to_eol(self):
+        pass
+
+    def select_window(self, window_num: int):
+        pass
+
 
 class MockInput(ZMachineInput):
 
@@ -44,9 +77,13 @@ class MockInput(ZMachineInput):
             mock_reads.reverse()
             self._mock_reads = mock_reads
 
-    def read_string(self, max_len: int) -> str:
+    def read_string(self, max_len: int, max_time_s: Optional[timedelta] = None) -> str:
         try:
             return self._mock_reads.pop()
         except IndexError:
             raise RuntimeError('Out of input')
+
+    def read_char(self, max_time_s: Optional[int] = None) -> str:
+        return ''
+
 

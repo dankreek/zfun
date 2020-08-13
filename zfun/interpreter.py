@@ -261,6 +261,16 @@ class ZMachineInterpreter(ABC):
             else:
                 self._pc = self._pc + (self._opcode.label.offset - 2)
 
+    def call_routine(self, routine_code_addr: int, num_local_vars: int, *local_var_vals: ZData):
+        if routine_code_addr == 0:
+            self._variables.set(self._opcode.result_var, ZWord.from_int(0))
+        else:
+            # Add new frame to the stack for this routine call
+            self._stack.push_routine_call(self._pc, num_local_vars, self._opcode.result_var, *local_var_vals)
+
+            # The address of the first instruction is directly after all the parameters
+            self._pc = PC(routine_code_addr)
+
     # -------- Instructions are all defined below and executed via reflection --------
     # Opcode method name convention is '_opcode__' + name of opcode
 
@@ -733,6 +743,24 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # Technically supposed to verify the integrity of the game file, but not doing it
         pass
 
+    def _routine_default_local_var_vals(self, routine_address: int, local_var_count: int):
+        """ Get the default local variable values for the routine.
+
+        For V1-V4 these are stored in code, for V5+ the defaults are all 0x0000
+
+        :param routine_address: Address of the routine header
+        :param local_var_count: Number of local variables
+        :return: A list of default values for the routine's local variables
+        """
+
+        # Each local variable's initial value is stored in the words following the word count byte
+        initial_local_var_values = [
+            ZWord(self._memory, routine_address + 1 + (i * 2))
+            for i in range(local_var_count)
+        ]
+
+        return initial_local_var_values
+
     def _opcode__call(self, *operands: Operand):
         packed_address = ZWord(operands[0].value)
 
@@ -742,24 +770,19 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         # The first byte of the routine header contains the number of local variables the routine has
         local_vars_count = self._memory[routine_address]
 
-        # Each local variable's initial value is stored in the words following the word count byte
-        initial_local_var_values = [
-            ZWord(self._memory, routine_address + 1 + (i * 2))
-            for i in range(local_vars_count)
-        ]
+        initial_local_var_values = self._routine_default_local_var_vals(routine_address, local_vars_count)
 
         # The additional operands of the call opcode are set in the new local vars
         for local_var_num in range(len(operands) - 1):
             initial_local_var_values[local_var_num] = operands[local_var_num+1].value
 
         if routine_address == 0:
+            # XXX: Is this only for V3?
             self._variables.set(self._opcode.result_var, ZWord.from_int(0))
         else:
-            # Add new frame to the stack for this routine
-            self._stack.push_routine_call(self._pc, local_vars_count, self._opcode.result_var, *initial_local_var_values)
-
-            # The address of the first instruction is directly after all the parameters
-            self._pc = PC(routine_address + 1 + (local_vars_count * 2))
+            # code starts after the default local vars
+            code_address = routine_address + 1 + (local_vars_count * 2)
+            self.call_routine(code_address, local_vars_count, *initial_local_var_values)
 
     def _opcode__sread(self, *operands: Operand):
         text_buffer_address = operands[0].value.unsigned_int
@@ -793,6 +816,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
     def _opcode__set_window(self, operands: Tuple[Operand]):
         # TODO #9 : Figure out how this works
+        # XXX: Implement this for screen
         raise NotImplemented('Still not sure how this works in V3')
 
     def _output_stream(self, operands: Tuple[Operand]):
@@ -806,6 +830,7 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
 
 class ZMachineInterpreterV4(ZMachineInterpreterV3):
 
+    @property
     def versions_supported(self) -> Iterable[int]:
         return (4,)
 
@@ -816,6 +841,114 @@ class ZMachineInterpreterV4(ZMachineInterpreterV3):
     @staticmethod
     def expanded_packed_string_address(packed_address: ZWord) -> int:
         return packed_address.unsigned_int * 4
+
+    # 1 OP instructions
+
+    def _opcode__call_1s(self, packed_routine_addr: Operand):
+        # Works the same as V3 call opcode
+        self._opcode__call(*[packed_routine_addr])
+
+    # 2 OP instructions
+
+    def _opcode__call_2s(self, packed_routine_addr: Operand, arg: Operand):
+        # Works the same as V3 call opcode
+        self._opcode__call(*[packed_routine_addr, arg])
+
+    # VAR OP instructions
+
+    def _opcode__call_vs(self, *operands: Operand):
+        # call_vs works the same as the V3 call opcode
+        self._opcode__call(*operands)
+
+    def _opcode__call_vs2(self, *operands: Operand):
+        # call_vs2 works the same as V3 call, but with extra operands
+        # these extra operands are parsed specially in ZMachineOpcodeParser
+        self._opcode__call(*operands)
+
+    def _opcode_erase_window(self, *operands: Operand):
+        window_num = operands[0].value.int
+
+        # XXX: add methods to screen interface
+        if window_num == -1:
+            self._screen.unsplit_screen()
+            self._screen.clear_all_windows()
+        elif window_num == -2:
+            self._screen.clear_all_windows()
+        else:
+            self._screen.clear_window(window_num)
+
+    def _opcode__erase_line(self, *operands: Operand):
+        value = operands[0].value.int
+
+        # Only clear the rest of the line of the value is 1, otherwise do nothing
+        if value == 1:
+            self._screen.erase_to_eol()
+
+    def _opcode__set_cursor(self, *operands: Operand):
+        line_num = operands[0].value.int
+        column_num = operands[1].value.int
+
+        # XXX: implement this in the screen interface and reference the caveats in the doc string
+        self._screen.set_cursor_location(line_num, column_num)
+
+    def _opcode__get_cursor(self, *operands: Operand):
+        line_num, column_num = self._screen.cursor_location
+        arr_addr = operands[0].value.unsigned_int
+
+        ZWord.from_unsigned_int(line_num).write(self._memory, arr_addr)
+        ZWord.from_unsigned_int(column_num).write(self._memory, arr_addr + 2)
+
+    def _opcode__set_text_style(self, *operands: Operand):
+        style_num = operands[0].value.unsigned_int
+
+        # XXX: define constants/enum for text styles and see docs for how they work in combination
+        # 0 = Roman
+        # 1 = Reverse Video
+        # 2 = Bold
+        # 4 = Italic
+        # 8 = Fixed pitch
+        if style_num == 0:
+            self._screen.set_style(style_num)
+        else:
+            self._screen.add_style(style_num)
+
+    def _opcode__buffer_mode(self, *operands: Operand):
+        flag = operands[0].value.unsigned_int
+
+        # XXX: oof, this looks like a doozie, do a search through the whole standards doc for buffer_mode to ensure this is done right
+
+    def _opcode__read_char(self, *operands: Operand):
+        if len(operands) >= 2:
+            time = operands[1].value.unsigned_int
+        else:
+            time = None
+
+        if time == 0:
+            time = None
+
+        if len(operands) == 3:
+            routine = operands[2].value.unsigned_int
+        else:
+            routine = None
+
+        if routine == 0:
+            routine = None
+
+        # XXX: need to add time/routine to screen interface, also read works different in V4 so need to override it as well
+
+    def _opcode__scan_table(self, *operands: Operand):
+        x = operands[0].value
+        table_addr = operands[1].value.unsigned_int
+        table_num_words = operands[2].value.unsigned_int
+
+        if len(operands) == 4:
+            form = operands[3].value
+        else:
+            form = None
+
+        # XXX: read up on how this is done
+
+
 
 
 class ZMachineExitException(ZMachineException):

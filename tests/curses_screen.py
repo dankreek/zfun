@@ -1,16 +1,19 @@
 import curses
 import textwrap
 
+from datetime import timedelta
 from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, ZMachineSaveRestoreHandler
 from typing import List, Union, Tuple, Optional
+
+from zfun.screen import TextStyle
 
 
 class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreHandler):
 
     def __init__(self):
-        self._header = Union[ZCodeHeader, None]
-        self._variables = Union[ZMachineVariables, None]
-        self._obj_table = Union[ZMachineObjectTable, None]
+        self._header: Optional[ZCodeHeader] = None
+        self._variables: Optional[ZMachineVariables] = None
+        self._obj_table: Optional[ZMachineObjectTable] = None
 
         # A history of every line sent to the main window, used for populating the back scroll
         self._main_win_history: List[str] = []
@@ -298,7 +301,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
     def selected_window(self, window_num: int):
         raise NotImplemented('No upper window functionality in V3')
 
-    def read_string(self, max_len: int) -> str:
+    def read_string(self, max_len: int, max_time_s: Optional[timedelta] = None) -> str:
         init_y, init_x = self._std_scr.getyx()
         max_chars_typed = 0
         user_input = ''
@@ -360,3 +363,146 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
         curses.echo()
         curses.endwin()
 
+    def set_upper_window_height(self, height: int):
+        raise NotImplemented('This screen only supports v3')
+
+    def unsplit_screen(self):
+        raise NotImplemented('This screen only supports v3')
+
+    def set_style(self, style: TextStyle):
+        raise NotImplemented('This screen only supports v3')
+
+    def add_style(self, style: TextStyle):
+        raise NotImplemented('This screen only supports v3')
+
+    @property
+    def cursor_location(self) -> Tuple[int, int]:
+        raise NotImplemented('This screen only supports v3')
+
+    def set_cursor_location(self, line_num: int, column_num: int):
+        raise NotImplemented('This screen only supports v3')
+
+    def clear_all_windows(self):
+        raise NotImplemented('This screen only supports v3')
+
+    def clear_window(self, window_num: int):
+        raise NotImplemented('This screen only supports v3')
+
+    def erase_to_eol(self):
+        raise NotImplemented('This screen only supports v3')
+
+    def select_window(self, window_num: int):
+        raise NotImplemented('This screen only supports v3')
+
+    def read_char(self, max_time_s: Optional[int] = None) -> str:
+        raise NotImplemented('This screen only supports v3')
+
+
+
+class ZMachineCursesScreenV4(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreHandler):
+
+    def __init__(self):
+        self._header: Optional[ZCodeHeader] = None
+        self._std_scr: Optional[curses.window] = None
+
+    def initialize(self, interpreter):
+        self._header: ZCodeHeader = interpreter.header
+
+        # Standard curses initialization
+        self._std_scr = curses.initscr()
+        curses.noecho()     # don't echo keyboard input
+        curses.cbreak()     # read keys without waiting for ENTER
+        self._std_scr.keypad(True)  # return key codes as strings
+
+        # Enable "hardware" scrolling
+        self._std_scr.scrollok(True)
+        self._std_scr.idlok(True)
+
+        # Timeout while waiting for keystrokes to check for screen resizing
+        self._std_scr.timeout(10)  # 10ms
+
+        self._std_scr.clear()
+        self._std_scr.move(curses.LINES - 1, 0)
+        self._std_scr.refresh()
+
+        # Set header flags for this screen's capability in the z-machine
+        if self._header.version == 4:
+            # Set flags 1
+            self._header.is_bold_style_available = True
+            self._header.is_italic_style_available = True
+            self._header.is_fixed_style_available = True
+            # TODO: maybe implement this later?
+            self._header.is_timed_keyboard_input_available = False
+
+            # Set flags 2
+            self._header.is_transcription_on = False
+            self._header.is_fixed_width_forced = True
+        else:
+            raise NotImplemented(f'Only version 4 stories are supported.')
+
+    def terminate(self):
+        pass
+
+    @property
+    def dimensions(self) -> Tuple[int, int]:
+        pass
+
+    @property
+    def upper_window_height(self) -> int:
+        pass
+
+    def set_upper_window_height(self, height: int):
+        pass
+
+    def unsplit_screen(self):
+        pass
+
+    def set_style(self, style: TextStyle):
+        pass
+
+    def add_style(self, style: TextStyle):
+        pass
+
+    @property
+    def cursor_location(self) -> Tuple[int, int]:
+        pass
+
+    def set_cursor_location(self, line_num: int, column_num: int):
+        pass
+
+    def clear_all_windows(self):
+        pass
+
+    def clear_window(self, window_num: int):
+        pass
+
+    def erase_to_eol(self):
+        pass
+
+    @property
+    def selected_window(self) -> int:
+        pass
+
+    def select_window(self, window_num: int):
+        pass
+
+    def print(self, text: str):
+        pass
+
+    def read_string(self, max_len: int, max_time_s: Optional[timedelta] = None) -> str:
+        pass
+
+    def read_char(self, max_time_s: Optional[int] = None) -> str:
+        pass
+
+    def save(self, save_data: bytes):
+        pass
+
+    def restore(self) -> bytes:
+        pass
+
+    def invalid_restore_game(self, error_message: str):
+        pass
+
+    def invalid_restore_data(self, error_message: str):
+        pass

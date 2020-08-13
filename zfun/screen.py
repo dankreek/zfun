@@ -17,6 +17,14 @@ class ColorCodes(Enum):
     DARK_GREY = 12
 
 
+class TextStyle(Enum):
+    ROMAN = 0
+    REVERSE = 1
+    BOLD = 2
+    ITALIC = 4
+    FIXED = 8
+
+
 class ZMachineScreen(ABC):
     # These guesses come from someone else's guesses! (just like most things known)
     # https://github.com/sussman/zvm/blob/master/zvm/zscreen.py#L14-L21
@@ -48,10 +56,62 @@ class ZMachineScreen(ABC):
         """ The current height of the upper window. If 0 then there is no upper window. """
         pass
 
-    @upper_window_height.setter
     @abstractmethod
-    def upper_window_height(self, height: int):
+    def set_upper_window_height(self, height: int):
         """ Set the height of the upper windows """
+        pass
+
+    @abstractmethod
+    def unsplit_screen(self):
+        """ Remove upper window """
+        pass
+
+    @abstractmethod
+    def set_style(self, style: TextStyle):
+        """ Set the current text style, overwriting the current style """
+        pass
+
+    @abstractmethod
+    def add_style(self, style: TextStyle):
+        """ Add a new style in addition to the currently set styles """
+        pass
+
+    @property
+    @abstractmethod
+    def cursor_location(self) -> Tuple[int, int]:
+        """ Return the cursor position of the selected window
+
+        :returns: The current window's row number, column number
+        """
+        pass
+
+    @abstractmethod
+    def set_cursor_location(self, line_num: int, column_num: int):
+        """ Set the cursor location of the current window
+
+        Note that the first column and first row are indexed at 1
+
+        :param line_num: Line number from top
+        :param column_num: Column number from left
+        """
+        pass
+
+    @abstractmethod
+    def clear_all_windows(self):
+        """ Clear the upper and lower windows"""
+        pass
+
+    @abstractmethod
+    def clear_window(self, window_num: int):
+        """ Clear the contents of the specified window
+
+        :param window_num:
+        """
+        pass
+
+    @abstractmethod
+    def erase_to_eol(self):
+        """ Erase the current line from the current column number to the end of the line. """
         pass
 
     @property
@@ -60,9 +120,12 @@ class ZMachineScreen(ABC):
         """ The currently selected window number """
         pass
 
-    @selected_window.setter
     @abstractmethod
-    def selected_window(self, window_num: int):
+    def select_window(self, window_num: int):
+        """ Select the window to write to
+
+        :param window_num: Window number to select, 0 is lower window, 1 is upper window
+        """
         pass
 
     @abstractmethod

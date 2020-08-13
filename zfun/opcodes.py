@@ -460,7 +460,7 @@ variable_opcodes_v4[0x10] = ('get_cursor', False, False, False)
 variable_opcodes_v4[0x11] = ('set_text_style', False, False, False)
 variable_opcodes_v4[0x12] = ('buffer_mode', False, False, False)
 variable_opcodes_v4[0x16] = ('read_char', True, False, False)
-variable_opcodes_v4[0x17] = ('scan_table', True, False, False)
+variable_opcodes_v4[0x17] = ('scan_table', True, True, False)
 
 
 class ZMachineOpcodeParserV3(ZMachineOpcodeParser):

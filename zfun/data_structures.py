@@ -1,5 +1,6 @@
+import builtins
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Optional
 
 from .exc import ZMachineIllegalOperation
 
@@ -159,6 +160,32 @@ class ZData(ABC):
         :return: New ZData with bit set
         """
         pass
+
+    def find(self, memory: bytes, start_address: int, end_address: int, record_length: Optional[builtins.int] = None) -> Optional[builtins.int]:
+        """ Search through the given memory for this value and return the address if it is found.
+
+        :param memory: Memory to search through
+        :param start_address: The address to being searching
+        :param end_address: Where the search area ends (this address will not be searched)
+        :param record_length: The length of each record to search. By default the record is same size as the data type,
+                              otherwise only the first byte or word of each record will be searched.
+        :return: The address of the data if found, otherwise None if not found
+        """
+        num_bytes = len(self)
+
+        if record_length is None:
+            record_length = num_bytes
+
+        assert record_length >= num_bytes, 'record length must be same size of larger then data to find'
+
+        address = start_address
+        while address < end_address:
+            if memory[address:address+num_bytes] == self.bytes:
+                return address
+            else:
+                address += record_length
+
+        return None
 
 
 class ZByte(ZData):
@@ -473,6 +500,7 @@ class ZWord(ZData):
 
 
 class PC:
+    """ Z-Machine program counter """
 
     def __init__(self, value: Union[int, ZWord]):
         if type(value) == ZWord:

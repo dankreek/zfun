@@ -7,8 +7,7 @@ from typing import Tuple
 from mocks import MockInput, MockScreen
 from zfun import (
     ZCodeHeader, ZMachineInterpreter, ZMachineInterpreterV3, get_header, ZMachineVariables,
-    ZMachineObjectTable, ZMachineStack, ZMachineExitException, IFZSContainer, ZMachineSaveRestoreHandler,
-    StacksQuetzalChunk, CMemQuetzalChunk, HeaderQuetzalChunk
+    ZMachineObjectTable, ZMachineStack, ZMachineExitException, ZMachineSaveRestoreHandler,
 )
 
 
