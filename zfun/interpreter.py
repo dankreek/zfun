@@ -1,6 +1,7 @@
 import random
 from abc import ABC, abstractmethod
 from typing import Tuple, Optional, NamedTuple, Iterable
+from datetime import timedelta
 
 from .data_structures import ZWord, ZByte, ZData, PC
 from .dictionary import ZMachineDictionary
@@ -10,7 +11,7 @@ from .input import ZMachineInput
 from .opcodes import ZMachineOpcodeParserV3, ZMachineOperandTypes, ZMachineOpcodeInfo
 from .objects import ZMachineObjectTable
 from .quetzal import HeaderQuetzalChunk, UMemQuetzalChunk, CMemQuetzalChunk, StacksQuetzalChunk, IFZSContainer, QuetzalReadError, IFZSReadError
-from .screen import ZMachineScreen
+from .screen import ZMachineScreen, TextStyle, ScreenWindow
 from .stack import ZMachineStack
 from .tokenize import tokenize
 from .variables import ZMachineVariables
@@ -106,6 +107,10 @@ class ZMachineInterpreter(ABC):
     def initialize(self):
         """ Initialize all header values for this version and call the screen's initialization. """
         self._screen.initialize(self)
+
+        # TODO: Remove this once interrupts are available (#37)
+        if self._header.version >= 4:
+            self._header.is_timed_keyboard_input_available = False
 
     @abstractmethod
     def terminate(self):
@@ -318,7 +323,7 @@ class ZMachineInterpreter(ABC):
     # 1OP instructions
 
     def _opcode__jz(self, a: Operand):
-        self._handle_branch(a.value.int == 0)
+        self._handle_branch(a.value.integer == 0)
 
     def _opcode__get_sibling(self, obj_num: Operand):
         obj_num = obj_num.value.unsigned_int
@@ -390,7 +395,7 @@ class ZMachineInterpreter(ABC):
         offset_len = len(offset.value)
         offset = offset.value
         # Account for the size of the offset operand
-        self._pc += offset.dec(offset_len).int
+        self._pc += offset.dec(offset_len).integer
 
     def _opcode__print_paddr(self, packed_addr: Operand):
         packed_addr = ZWord(packed_addr.value)
@@ -416,10 +421,10 @@ class ZMachineInterpreter(ABC):
         self._handle_branch(False)
 
     def _opcode__jl(self, a: Operand, b: Operand):
-        self._handle_branch(a.value.int < b.value.int)
+        self._handle_branch(a.value.integer < b.value.integer)
 
     def _opcode__jg(self, a: Operand, b: Operand):
-        self._handle_branch(a.value.int > b.value.int)
+        self._handle_branch(a.value.integer > b.value.integer)
 
     def _opcode__dec_chk(self, var_num: Operand, cmp_val: Operand):
         var_num = ZByte(var_num.literal_value)
@@ -428,7 +433,7 @@ class ZMachineInterpreter(ABC):
         # Read variable value, decrement it and write it back
         dec_val = self._variables.val(var_num).dec()
         self._variables.set(var_num, dec_val)
-        self._handle_branch(dec_val.int < cmp_val.int)
+        self._handle_branch(dec_val.integer < cmp_val.integer)
 
     def _opcode__inc_chk(self, var_num: Operand, cmp_val: Operand):
         var_num = ZByte(var_num.literal_value)
@@ -437,7 +442,7 @@ class ZMachineInterpreter(ABC):
         dec_val = self._variables.val(var_num).inc()
         self._variables.set(var_num, dec_val)
 
-        self._handle_branch(dec_val.int > cmp_val.value.int)
+        self._handle_branch(dec_val.integer > cmp_val.value.integer)
 
     def _opcode__jin(self, child_obj_num: Operand, parent_obj_num: Operand):
         child_obj_num = child_obj_num.value.unsigned_int
@@ -610,11 +615,11 @@ class ZMachineInterpreter(ABC):
         self._screen.print(chr(char))
 
     def _opcode__print_num(self, *operands: Operand):
-        num = operands[0].value.int
+        num = operands[0].value.integer
         self._screen.print(str(num))
 
     def _opcode__random(self, *operands: Operand):
-        rnd_range = operands[0].value.int
+        rnd_range = operands[0].value.integer
 
         if rnd_range == 0:
             # Reseed generator with a random seed
@@ -777,7 +782,6 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
             initial_local_var_values[local_var_num] = operands[local_var_num+1].value
 
         if routine_address == 0:
-            # XXX: Is this only for V3?
             self._variables.set(self._opcode.result_var, ZWord.from_int(0))
         else:
             # code starts after the default local vars
@@ -787,6 +791,9 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
     def _opcode__sread(self, *operands: Operand):
         text_buffer_address = operands[0].value.unsigned_int
         parse_buffer_address = operands[1].value.unsigned_int
+
+        if len(operands) > 2:
+            raise ZMachineRuntimeException(f'timed keyboard reads are not currently supported')
 
         # The max number of characters to read is in the first byte of the text buffer
         max_chars = ZByte(self._memory, text_buffer_address).unsigned_int
@@ -810,14 +817,11 @@ class ZMachineInterpreterV3(ZMachineInterpreter):
         val = self._stack.pop()
         self._variables.set(res_var, val)
 
-    def _opcode__split_window(self, operands: Tuple[Operand]):
-        # TODO #9 : Figure out how this works
-        raise NotImplemented('Still not sure how this works in V3')
+    def _opcode__split_window(self, *operands: Operand):
+        self._screen.set_upper_window_height(operands[0].value.integer)
 
     def _opcode__set_window(self, operands: Tuple[Operand]):
-        # TODO #9 : Figure out how this works
-        # XXX: Implement this for screen
-        raise NotImplemented('Still not sure how this works in V3')
+        self._screen.select_window(ScreenWindow.from_int(operands[0].value.unsigned_int))
 
     def _output_stream(self, operands: Tuple[Operand]):
         # TODO #10: Figure out how this works
@@ -866,29 +870,27 @@ class ZMachineInterpreterV4(ZMachineInterpreterV3):
         self._opcode__call(*operands)
 
     def _opcode_erase_window(self, *operands: Operand):
-        window_num = operands[0].value.int
+        window_num = operands[0].value.integer
 
-        # XXX: add methods to screen interface
         if window_num == -1:
-            self._screen.unsplit_screen()
+            self._screen.set_upper_window_height(0)
             self._screen.clear_all_windows()
         elif window_num == -2:
             self._screen.clear_all_windows()
         else:
-            self._screen.clear_window(window_num)
+            self._screen.clear_window(ScreenWindow.from_int(window_num))
 
     def _opcode__erase_line(self, *operands: Operand):
-        value = operands[0].value.int
+        value = operands[0].value.integer
 
         # Only clear the rest of the line of the value is 1, otherwise do nothing
         if value == 1:
             self._screen.erase_to_eol()
 
     def _opcode__set_cursor(self, *operands: Operand):
-        line_num = operands[0].value.int
-        column_num = operands[1].value.int
+        line_num = operands[0].value.integer
+        column_num = operands[1].value.integer
 
-        # XXX: implement this in the screen interface and reference the caveats in the doc string
         self._screen.set_cursor_location(line_num, column_num)
 
     def _opcode__get_cursor(self, *operands: Operand):
@@ -901,40 +903,23 @@ class ZMachineInterpreterV4(ZMachineInterpreterV3):
     def _opcode__set_text_style(self, *operands: Operand):
         style_num = operands[0].value.unsigned_int
 
-        # XXX: define constants/enum for text styles and see docs for how they work in combination
-        # 0 = Roman
-        # 1 = Reverse Video
-        # 2 = Bold
-        # 4 = Italic
-        # 8 = Fixed pitch
-        if style_num == 0:
-            self._screen.set_style(style_num)
+        style = TextStyle.from_int(style_num)
+        if style == TextStyle.ROMAN:
+            self._screen.set_style(style)
         else:
-            self._screen.add_style(style_num)
+            self._screen.add_style(style)
 
     def _opcode__buffer_mode(self, *operands: Operand):
         flag = operands[0].value.unsigned_int
-
-        # XXX: oof, this looks like a doozie, do a search through the whole standards doc for buffer_mode to ensure this is done right
+        buffer_mode = True if flag == 1 else False
+        self._screen.set_buffering(buffer_mode)
 
     def _opcode__read_char(self, *operands: Operand):
         if len(operands) >= 2:
-            time = operands[1].value.unsigned_int
-        else:
-            time = None
+            raise ZMachineRuntimeException('timed character reads are not currently supported')
 
-        if time == 0:
-            time = None
-
-        if len(operands) == 3:
-            routine = operands[2].value.unsigned_int
-        else:
-            routine = None
-
-        if routine == 0:
-            routine = None
-
-        # XXX: need to add time/routine to screen interface, also read works different in V4 so need to override it as well
+        char = self._keyboard.read_char()
+        return ZByte.from_unsigned_int(ord(char))
 
     def _opcode__scan_table(self, *operands: Operand):
         x = operands[0].value
@@ -942,13 +927,28 @@ class ZMachineInterpreterV4(ZMachineInterpreterV3):
         table_num_words = operands[2].value.unsigned_int
 
         if len(operands) == 4:
+            # This is only used in V5 but it's easy enough to implement it here
             form = operands[3].value
         else:
-            form = None
+            form = ZByte.from_unsigned_int(0x82)  # default values
 
-        # XXX: read up on how this is done
+        if form.is_bit_set(7):
+            # The word to search for is a ZWord
+            word = ZByte(x)
+        else:
+            word = ZWord(x)
 
+        # The length of a record is stored in the bottom 7 bits
+        record_length = (form & 0x7f).unsigned_int
+        end_table_addr = record_length * table_num_words
 
+        found_addr = word.find(self._memory, table_addr, end_table_addr, record_length)
+
+        if found_addr is not None:
+            self._handle_branch(True)
+            return ZWord.from_unsigned_int(found_addr)
+        else:
+            return ZWord.from_int(0)
 
 
 class ZMachineExitException(ZMachineException):

@@ -2,15 +2,14 @@ import curses
 import textwrap
 
 from datetime import timedelta
-from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, ZMachineSaveRestoreHandler
-from typing import List, Union, Tuple, Optional
-
-from zfun.screen import TextStyle
+from zfun import ZMachineInterpreter, ZMachineInput, ZMachineScreen, ZCodeHeader, ZMachineVariables, ZMachineObjectTable, StatusLineType, ZMachineSaveRestoreHandler, TextStyle, ScreenWindow
+from typing import List, Union, Tuple, Optional, Dict
 
 
 class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreHandler):
 
     def __init__(self):
+        super().__init__()
         self._header: Optional[ZCodeHeader] = None
         self._variables: Optional[ZMachineVariables] = None
         self._obj_table: Optional[ZMachineObjectTable] = None
@@ -198,7 +197,7 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
         orig_y, orig_x = self._std_scr.getyx()
 
         if self._header.status_line_type == StatusLineType.SCORE_TURNS:
-            score = self._variables.global_val(1).int
+            score = self._variables.global_val(1).integer
             turns = self._variables.global_val(2).unsigned_int
 
             status = f'Score: {score:<7} Turns: {turns:<7}'
@@ -366,9 +365,6 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
     def set_upper_window_height(self, height: int):
         raise NotImplemented('This screen only supports v3')
 
-    def unsplit_screen(self):
-        raise NotImplemented('This screen only supports v3')
-
     def set_style(self, style: TextStyle):
         raise NotImplemented('This screen only supports v3')
 
@@ -385,18 +381,20 @@ class ZMachineCursesScreenV3(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
     def clear_all_windows(self):
         raise NotImplemented('This screen only supports v3')
 
-    def clear_window(self, window_num: int):
+    def clear_window(self, window: ScreenWindow):
         raise NotImplemented('This screen only supports v3')
 
     def erase_to_eol(self):
         raise NotImplemented('This screen only supports v3')
 
-    def select_window(self, window_num: int):
+    def select_window(self, window: ScreenWindow):
         raise NotImplemented('This screen only supports v3')
 
     def read_char(self, max_time_s: Optional[int] = None) -> str:
         raise NotImplemented('This screen only supports v3')
 
+    def flush_buffer(self):
+        pass
 
 
 class ZMachineCursesScreenV4(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreHandler):
@@ -404,6 +402,35 @@ class ZMachineCursesScreenV4(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
     def __init__(self):
         self._header: Optional[ZCodeHeader] = None
         self._std_scr: Optional[curses.window] = None
+
+        self._upper_win_height: int = 0
+
+        # Contents of the lower window buffer.
+        # Once the buffer is flushed the contents get split into lines and added to the lower window contents
+        self._lower_win_buffer: str = ''
+
+        self._upper_win: Dict[str, Union[None, List[str], int, Tuple[int, int], curses.window]] = dict(
+            contents=[],
+            style=curses.A_NORMAL,
+            cursor_pos=(0, 0),
+            # The curses pad which contains the upper window text
+            window=None
+        )
+
+        self._lower_win: Dict[str, Union[None, List[str], int, Tuple[int, int], curses.window]] = dict(
+            # Contains the window, each element is one paragraph of text.
+            contents=[],
+            # Bitfields containing current window style
+            style=curses.A_NORMAL,
+            # Current cursor position in the window
+            cursor_pos=(0, 0),
+            window=self._std_scr
+        )
+
+        # Reference to the currently selected window
+        self._selected_win: dict = self._lower_win
+
+        super().__init__()
 
     def initialize(self, interpreter):
         self._header: ZCodeHeader = interpreter.header
@@ -421,6 +448,7 @@ class ZMachineCursesScreenV4(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
         # Timeout while waiting for keystrokes to check for screen resizing
         self._std_scr.timeout(10)  # 10ms
 
+        # Clear window and move the cursor to the bottom line
         self._std_scr.clear()
         self._std_scr.move(curses.LINES - 1, 0)
         self._std_scr.refresh()
@@ -441,59 +469,137 @@ class ZMachineCursesScreenV4(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
             raise NotImplemented(f'Only version 4 stories are supported.')
 
     def terminate(self):
-        pass
+        curses.nocbreak()
+        self._std_scr.keypad(False)
+        curses.echo()
+        curses.endwin()
 
     @property
     def dimensions(self) -> Tuple[int, int]:
-        pass
+        return curses.LINES, curses.COLS
 
     @property
     def upper_window_height(self) -> int:
-        pass
+        return self._upper_win_height
 
     def set_upper_window_height(self, height: int):
-        pass
+        if self.upper_window_height == 0 and height > 0:
+            # Create a new pad to container the upper window contents
+            pad = curses.newpad(height, curses.COLS)
+            pad.scrollok(False)
 
-    def unsplit_screen(self):
-        pass
+            # noinspection PyTypeChecker
+            self._upper_win['window'] = pad
+        elif self.upper_window_height > 0 and height > 0:
+            # Resize the existing pad
+            self._upper_win['window'].resize(height, curses.COLS)
+        elif height == 0:
+            self._upper_win['window'] = None
+
+        self._upper_win_height = height
+
+    @staticmethod
+    def _curses_style(z_machine_style: TextStyle) -> int:
+        """
+        :param z_machine_style:
+        :return: The curses style which corresponds to the z-machine text style
+        """
+        if z_machine_style == TextStyle.ROMAN:
+            return curses.A_NORMAL
+        elif z_machine_style == TextStyle.REVERSE:
+            return curses.A_REVERSE
+        elif z_machine_style == TextStyle.BOLD:
+            return curses.A_BOLD
+        elif z_machine_style == TextStyle.FIXED:
+            return curses.A_NORMAL
+        elif z_machine_style == TextStyle.ITALIC:
+            return curses.A_UNDERLINE
 
     def set_style(self, style: TextStyle):
-        pass
+        style = self._curses_style(style)
+        self._selected_win['style'] = style
 
     def add_style(self, style: TextStyle):
-        pass
+        style = self._curses_style(style)
+        self._selected_win['style'] |= style
 
     @property
     def cursor_location(self) -> Tuple[int, int]:
-        pass
+        # Cursor position is stored in curses-style which is 0-indexed, the z-machine uses 1-indexed coordinates
+        return (self._selected_win['cursor_pos'][0]+1, self._selected_win['cursor_pos'][1]+1)
 
     def set_cursor_location(self, line_num: int, column_num: int):
-        pass
+        # Cursor position is stored in curses-style which is 0-indexed, the z-machine uses 1-indexed coordinates
+        self._selected_win['cursor_pos'] = (line_num-1, column_num-1)
 
     def clear_all_windows(self):
         pass
 
-    def clear_window(self, window_num: int):
-        pass
+    def clear_window(self, window: ScreenWindow):
+        if window == ScreenWindow.LOWER:
+            self._std_scr.clear()
+        elif window == ScreenWindow.UPPER and self._upper_win_height > 0:
+            self._upper_win['window'].erase()
 
     def erase_to_eol(self):
-        pass
+        self._selected_win['window'].clrtoeol()
 
     @property
-    def selected_window(self) -> int:
-        pass
+    def selected_window(self) -> ScreenWindow:
+        if self._selected_win == self._upper_win:
+            return ScreenWindow.UPPER
+        else:
+            return ScreenWindow.LOWER
 
-    def select_window(self, window_num: int):
-        pass
+    def select_window(self, window: ScreenWindow):
+        if window == ScreenWindow.UPPER:
+            self._selected_win = self._upper_win
+        else:
+            self._selected_win = self._lower_win
 
     def print(self, text: str):
+        if self.selected_window == ScreenWindow.UPPER:
+            self._print_upper_win(text)
+        else:
+            self._print_lower_win(text)
+
+    def _print_upper_win(self, text: str):
         pass
+
+    def _print_lower_win(self, text: str):
+        if self.is_buffering_on:
+            self._lower_win_buffer += text
+        else:
+            self._std_scr.addstr(text, self._lower_win['style'])
+
+    def flush_buffer(self):
+        """ Flush the lower window buffer and print buffered text to the screen """
+        # XXX: there needs to be some way to indicate style changes inside the text
+        wrapped_lines = [
+            textwrap.fill(line, width=curses.COLS)
+            for line in self._lower_win_buffer.splitlines()
+        ]
+
+        for line in wrapped_lines:
+            self._std_scr.addstr(line, self._lower_win, self._lower_win['style'])
+            if len(line) < curses.COLS:
+                self._std_scr.addstr('\n')
+
+        self._lower_win_buffer = ''
+
+        self._std_scr.refresh()
+        if self.upper_window_height > 0:
+            self._upper_win['win'].refresh(0, 0, 0, 0, self.upper_window_height, curses.COLS)
+
+    # Keyboard input ##########
 
     def read_string(self, max_len: int, max_time_s: Optional[timedelta] = None) -> str:
         pass
 
     def read_char(self, max_time_s: Optional[int] = None) -> str:
         pass
+
+    # Game save and restore ##########
 
     def save(self, save_data: bytes):
         pass
@@ -506,3 +612,6 @@ class ZMachineCursesScreenV4(ZMachineScreen, ZMachineInput, ZMachineSaveRestoreH
 
     def invalid_restore_data(self, error_message: str):
         pass
+
+
+

@@ -33,7 +33,7 @@ class ObjectProperty(ABC):
         if self.size == 2 and type(value) == ZByte:
             value = value.pad(is_signed=True)
         elif self.size == 1 and type(value) == ZWord:
-            value = ZByte.from_int(value.int)
+            value = ZByte.from_int(value.integer)
         elif self.size != len(value):
             raise ZMachineIllegalOperation(f'Can not set a property value of size {self.size} with a value of size {len(value)}')
 
@@ -371,7 +371,7 @@ class PropertiesTable(ABC):
         value_address = self.property_value_address(prop_info.address)
 
         if (prop_info.size == 1) and (len(value) == 2):
-            byte_val = ZByte.from_int(value.int)
+            byte_val = ZByte.from_int(value.integer)
             byte_val.write(self._memory, value_address)
         elif (prop_info.size == 2) and (type(value) == ZByte):
             word_val = value.pad(is_signed=True)

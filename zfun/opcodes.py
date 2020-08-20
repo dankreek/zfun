@@ -248,7 +248,7 @@ class ZMachineOpcodeParser(ABC):
             next_branch_byte = self._memory[address + 1]
             size = 2
 
-            offset = ZWord(bytes([first_branch_byte, next_branch_byte])).int
+            offset = ZWord(bytes([first_branch_byte, next_branch_byte])).integer
 
         return ZMachineLabel(predicate, offset, size), address + size
 

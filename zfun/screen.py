@@ -24,12 +24,35 @@ class TextStyle(Enum):
     ITALIC = 4
     FIXED = 8
 
+    @staticmethod
+    def from_int(style_num: int):
+        for style in TextStyle:
+            if style.value == style_num:
+                return style
+
+        raise ValueError(f'The style number {style_num} is not a valid style')
+
+
+class ScreenWindow(Enum):
+    LOWER = 0
+    UPPER = 1
+
+    @staticmethod
+    def from_int(window_num: int):
+        if window_num == 0:
+            return ScreenWindow.LOWER
+        elif window_num == 1:
+            return ScreenWindow.UPPER
+
 
 class ZMachineScreen(ABC):
     # These guesses come from someone else's guesses! (just like most things known)
     # https://github.com/sussman/zvm/blob/master/zvm/zscreen.py#L14-L21
     STATUS_WIN = 1
     LOWER_WIN = 2
+
+    def __init__(self):
+        self._is_buffering_on = False  # Buffering is off by default
 
     @abstractmethod
     def initialize(self, interpreter):
@@ -58,12 +81,7 @@ class ZMachineScreen(ABC):
 
     @abstractmethod
     def set_upper_window_height(self, height: int):
-        """ Set the height of the upper windows """
-        pass
-
-    @abstractmethod
-    def unsplit_screen(self):
-        """ Remove upper window """
+        """ Set the height of the upper window. A value of 0 unsplits the screen. """
         pass
 
     @abstractmethod
@@ -89,7 +107,8 @@ class ZMachineScreen(ABC):
     def set_cursor_location(self, line_num: int, column_num: int):
         """ Set the cursor location of the current window
 
-        Note that the first column and first row are indexed at 1
+        The first column and first row are indexed at 1
+        If the cursor would lie outside the current margin settings, it is moved to the left margin of the current line
 
         :param line_num: Line number from top
         :param column_num: Column number from left
@@ -102,10 +121,10 @@ class ZMachineScreen(ABC):
         pass
 
     @abstractmethod
-    def clear_window(self, window_num: int):
+    def clear_window(self, window: ScreenWindow):
         """ Clear the contents of the specified window
 
-        :param window_num:
+        :param window:
         """
         pass
 
@@ -116,21 +135,24 @@ class ZMachineScreen(ABC):
 
     @property
     @abstractmethod
-    def selected_window(self) -> int:
-        """ The currently selected window number """
+    def selected_window(self) -> ScreenWindow:
+        """ The currently selected window """
         pass
 
     @abstractmethod
-    def select_window(self, window_num: int):
+    def select_window(self, window: ScreenWindow):
         """ Select the window to write to
 
-        :param window_num: Window number to select, 0 is lower window, 1 is upper window
+        :param window: Window to select
         """
         pass
 
     @abstractmethod
     def print(self, text: str):
         """ Print text to the selected window.
+
+        Note that if buffering is on then text printed to the lower window should be buffered instead of being printed
+        directly to the lower window. If buffering is off, the text should not be word wrapped.
 
         :param text:
         """
@@ -143,3 +165,31 @@ class ZMachineScreen(ABC):
         """
         pass
 
+    @property
+    def is_buffering_on(self) -> bool:
+        """ Is lower window buffering currently switched on?
+
+        Buffering is off by default.
+
+        :return:
+        """
+        return self._is_buffering_on
+
+    def set_buffering(self, is_on: bool):
+        """ Set lower window buffering to on or off
+
+        :param is_on:
+        """
+        if self.is_buffering_on and not is_on:
+            self.flush_buffer()
+
+        self._is_buffering_on = is_on
+
+    @abstractmethod
+    def flush_buffer(self):
+        """ Flush the contents of the buffer into the lower window.
+
+        When buffered text is printed to the lower window it should be properly word wrapped.
+
+        """
+        pass

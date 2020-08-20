@@ -16,11 +16,11 @@ class ZMachineInput(ABC):
         pass
 
     @abstractmethod
-    def read_char(self, max_time_s: Optional[int] = None) -> str:
+    def read_char(self, max_time_s: Optional[int] = None) -> Optional[str]:
         """ Read a single character from the user.
 
         :param max_time_s: Maximum amount of time to wait for the user to press a key
-        :return: The character the user types
+        :return: The character the user typed or None if the user did not press a key in the specified time
         """
         pass
 

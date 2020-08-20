@@ -105,12 +105,12 @@ class ZData(ABC):
         pass
 
     @property
-    def bytes(self) -> bytes:
+    def as_bytes(self) -> bytes:
         """ Data value as a Python byte string"""
         return self._value
 
     @property
-    def int(self) -> int:
+    def integer(self) -> int:
         """ Value of data as a signed integer """
         return int.from_bytes(self._value, 'big', signed=True)
 
@@ -161,7 +161,7 @@ class ZData(ABC):
         """
         pass
 
-    def find(self, memory: bytes, start_address: int, end_address: int, record_length: Optional[builtins.int] = None) -> Optional[builtins.int]:
+    def find(self, memory: Union[bytes, memoryview], start_address: int, end_address: int, record_length: Optional[int] = None) -> Optional[int]:
         """ Search through the given memory for this value and return the address if it is found.
 
         :param memory: Memory to search through
@@ -170,6 +170,7 @@ class ZData(ABC):
         :param record_length: The length of each record to search. By default the record is same size as the data type,
                               otherwise only the first byte or word of each record will be searched.
         :return: The address of the data if found, otherwise None if not found
+        :rtype: int
         """
         num_bytes = len(self)
 
@@ -180,7 +181,7 @@ class ZData(ABC):
 
         address = start_address
         while address < end_address:
-            if memory[address:address+num_bytes] == self.bytes:
+            if memory[address:address+num_bytes] == self.as_bytes:
                 return address
             else:
                 address += record_length
@@ -198,7 +199,7 @@ class ZByte(ZData):
             value = bytes([value[offset]])
         elif type(value) == ZByte:
             # Copy/cast constructor
-            value = value.bytes
+            value = value.as_bytes
         else:
             raise TypeError('ZByte value can only be set with ZByte, bytes or memoryview')
 
@@ -211,7 +212,7 @@ class ZByte(ZData):
         :return: A new 16-bit value
         :rtype: ZWord
         """
-        if is_signed and (self.int < 0):
+        if is_signed and (self.integer < 0):
             return ZWord(b'\xff' + self._value)
         else:
             return ZWord(b'\x00' + self._value)
@@ -220,7 +221,7 @@ class ZByte(ZData):
         if type(other) != ZByte:
             raise TypeError(f'can not compare a ZByte to {type(other)}')
         else:
-            return self._value == other.bytes
+            return self._value == other.as_bytes
 
     def _trunc_int(self, calc_size: int, res_size: int, value: int) -> bytes:
         bytes_val = value.to_bytes(calc_size, 'big', signed=True)
@@ -230,7 +231,7 @@ class ZByte(ZData):
         if not issubclass(type(other), ZData):
             raise TypeError('can only add ZData types')
 
-        value = self.int + other.int
+        value = self.integer + other.integer
         if type(other) == ZWord:
             return ZWord(self._trunc_int(3, 2, value))
         elif type(other) == ZByte:
@@ -240,7 +241,7 @@ class ZByte(ZData):
         if not issubclass(type(other), ZData):
             raise TypeError('can only subtract ZData types')
 
-        value = self.int - other.int
+        value = self.integer - other.integer
         if type(other) == ZWord:
             return ZWord(self._trunc_int(3, 2, value))
         elif type(other) == ZByte:
@@ -250,7 +251,7 @@ class ZByte(ZData):
         if not issubclass(type(other), ZData):
             raise TypeError('can only multiply ZData types')
 
-        value = self.int * other.int
+        value = self.integer * other.integer
         if type(other) == ZWord:
             return ZWord(self._trunc_int(4, 2, value))
         elif type(other) == ZByte:
@@ -259,10 +260,10 @@ class ZByte(ZData):
     def __floordiv__(self, other):
         if not issubclass(type(other), ZData):
             raise TypeError('can only divide ZData types')
-        elif other.int == 0:
+        elif other.integer == 0:
             raise ZMachineIllegalOperation('Divide by zero')
 
-        value = self.int // other.int
+        value = self.integer // other.integer
         if type(other) == ZWord:
             return ZWord(self._trunc_int(4, 2, value))
         elif type(other) == ZByte:
@@ -271,10 +272,10 @@ class ZByte(ZData):
     def __mod__(self, other):
         if not issubclass(type(other), ZData):
             raise TypeError('can only modulo ZData types')
-        elif other.int == 0:
+        elif other.integer == 0:
             raise ZMachineIllegalOperation('Modulo by zero')
 
-        value = self.int % other.int
+        value = self.integer % other.integer
 
         if type(other) == ZByte:
             return ZByte.from_int(value)
@@ -285,7 +286,7 @@ class ZByte(ZData):
         if (type(other) != int) or (other < 0):
             raise TypeError('Can only shift by a positive integer')
 
-        value = self.int << other
+        value = self.integer << other
         return ZByte(self._trunc_int(2, 1, value))
 
     def __rshift__(self, other):
@@ -299,18 +300,18 @@ class ZByte(ZData):
         if (type(other) != int) or (0 > other > 255):
             raise TypeError('Can only apply bitwise operations with an integer between 0 and 255')
 
-        value = self.int & other
+        value = self.integer & other
         return ZByte(self._trunc_int(1, 1, value))
 
     def __or__(self, other):
         if (type(other) != int) or (0 > other > 255):
             raise TypeError('Can only apply bitwise operations with an integer between 0 and 255')
 
-        value = self.int | other
+        value = self.integer | other
         return ZByte(self._trunc_int(1, 1, value))
 
     def __invert__(self):
-        value = ~self.int
+        value = ~self.integer
         return ZByte(self._trunc_int(1, 1, value))
 
     @staticmethod
@@ -349,7 +350,7 @@ class ZByte(ZData):
             raise ValueError('Can only test bits 0-8 in a ZByte')
 
         mask = 1 << bit_number
-        return (self.int & mask) != 0
+        return (self.integer & mask) != 0
 
     def set_bit(self, bit_number: int):
         assert 0 <= bit_number <= 7, 'bit number must be between 0 and 7'
@@ -361,7 +362,7 @@ class ZWord(ZData):
     def __init__(self, value: Union[ZData, bytes, memoryview], offset: int = 0):
         if type(value) == ZWord:
             # Copy/cast constructor
-            value = value.bytes
+            value = value.as_bytes
         elif type(value) in [memoryview, bytes]:
             if len(value) < 2:
                 raise ValueError('value must be at least two bytes long')
@@ -379,7 +380,7 @@ class ZWord(ZData):
         if type(other) != ZWord:
             raise TypeError(f'can not compare a ZWord to {type(other)}')
         else:
-            return self._value == other.bytes
+            return self._value == other.as_bytes
 
     def _trunc_int(self, value: int):
         bytes_val = value.to_bytes(4, 'big', signed=True)
@@ -389,53 +390,53 @@ class ZWord(ZData):
         if not issubclass(type(other), ZData):
             raise ValueError('Can only add to another ZData type')
 
-        value = self.int + other.int
+        value = self.integer + other.integer
         return ZWord(self._trunc_int(value))
 
     def __sub__(self, other):
         if not issubclass(type(other), ZData):
             raise ValueError('Can only subtract from another ZData type')
 
-        value = self.int - other.int
+        value = self.integer - other.integer
         return ZWord(self._trunc_int(value))
 
     def __mul__(self, other):
         if not issubclass(type(other), ZData):
             raise ValueError('Can only multiply with another ZData type')
 
-        value = self.int * other.int
+        value = self.integer * other.integer
         return ZWord(self._trunc_int(value))
 
     def __floordiv__(self, other):
         if not issubclass(type(other), ZData):
             raise ValueError('Can only divide by another ZData type')
-        elif other.int == 0:
+        elif other.integer == 0:
             raise ZMachineIllegalOperation('Divide by zero')
 
-        value = self.int // other.int
+        value = self.integer // other.integer
         return ZWord(self._trunc_int(value))
 
     def __mod__(self, other):
         if not issubclass(type(other), ZData):
             raise TypeError('can only modulo ZData types')
-        elif other.int == 0:
+        elif other.integer == 0:
             raise ZMachineIllegalOperation('Modulo by zero')
 
-        value = self.int % other.int
+        value = self.integer % other.integer
         return ZWord.from_int(value)
 
     def __lshift__(self, other):
         if (type(other) != int) or (other < 0):
             raise ValueError('Can only shift by an unsigned int greater than 0')
 
-        value = self.int << other
+        value = self.integer << other
         return ZWord(self._trunc_int(value))
 
     def __rshift__(self, other):
         if (type(other) != int) or (other < 0):
             raise ValueError('Can only shift by an unsigned int greater than 0')
 
-        value = self.int >> other
+        value = self.integer >> other
         return ZWord.from_int(value)
 
     def __and__(self, other):
@@ -449,11 +450,11 @@ class ZWord(ZData):
         if (type(other) != int) or (0 > other > 65535):
             raise TypeError('Can only apply bitwise operations with an integer between 0 and 65535')
 
-        value = self.int | other
+        value = self.integer | other
         return ZWord.from_int(value)
 
     def __invert__(self):
-        value = ~self.int
+        value = ~self.integer
         return ZWord.from_int(value)
 
     @staticmethod
@@ -492,7 +493,7 @@ class ZWord(ZData):
             raise ValueError('Can only test bits 0-15 in a ZByte')
 
         mask = 1 << bit_number
-        return (self.int & mask) != 0
+        return (self.integer & mask) != 0
 
     def set_bit(self, bit_number: int):
         assert 0 <= bit_number <= 15, 'bit number must be between 0 and 15'

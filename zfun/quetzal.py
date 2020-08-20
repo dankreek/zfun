@@ -206,24 +206,24 @@ class StacksQuetzalChunk(QuetzalChunk):
             stack_bytes.append(len(frame.local_vars))
 
             # Add routine result variable
-            stack_bytes += frame.result_var.bytes if frame.result_var is not None else b'\x00'
+            stack_bytes += frame.result_var.as_bytes if frame.result_var is not None else b'\x00'
 
             # TODO: Fix this for version 4+, flags
             passed_parameters_flags = ZByte(b'\x00')
             # for i in range(len(frame.local_vars)):
             #     passed_parameters_flags = passed_parameters_flags.set_bit(i)
-            stack_bytes += passed_parameters_flags.bytes
+            stack_bytes += passed_parameters_flags.as_bytes
 
             # Add number of stack words used
-            stack_bytes += ZWord.from_unsigned_int(len(frame.stack_data)).bytes
+            stack_bytes += ZWord.from_unsigned_int(len(frame.stack_data)).as_bytes
 
             # Add each local variable
             for var in frame.local_vars:
-                stack_bytes += var.bytes
+                stack_bytes += var.as_bytes
 
             # Add the evaluation stack
             for var in frame.stack_data:
-                stack_bytes += var.bytes
+                stack_bytes += var.as_bytes
 
         return StacksQuetzalChunk(bytes(stack_bytes))
 
@@ -330,9 +330,9 @@ class HeaderQuetzalChunk(QuetzalChunk):
         :rtype: HeaderQuetzalChunk
         """
         output = bytearray()
-        output += ZWord.from_unsigned_int(header.release_number).bytes
+        output += ZWord.from_unsigned_int(header.release_number).as_bytes
         output += header.serial_code.encode('ascii')
-        output += ZWord.from_unsigned_int(header.file_checksum).bytes
+        output += ZWord.from_unsigned_int(header.file_checksum).as_bytes
         output += save_pc.bytes
         return HeaderQuetzalChunk(bytes(output))
 

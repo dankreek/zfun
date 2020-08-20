@@ -38,9 +38,6 @@ class MockScreen(ZMachineScreen):
     def set_upper_window_height(self, height: int):
         pass
 
-    def unsplit_screen(self):
-        pass
-
     def set_style(self, style: TextStyle):
         pass
 
@@ -64,6 +61,9 @@ class MockScreen(ZMachineScreen):
         pass
 
     def select_window(self, window_num: int):
+        pass
+
+    def flush_buffer(self):
         pass
 
 

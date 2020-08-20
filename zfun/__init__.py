@@ -6,7 +6,7 @@ from .interpreter import ZMachineInterpreter, ZMachineResetException, ZMachineEx
 from .objects import ZMachineObject, ZMachineObjectTable
 from .opcodes import ZMachineOpcodeParser, ZMachineOpcodeParserV3, ZMachineOperandTypes, ZMachineOpcodeParsingError
 from .quetzal import QuetzalChunk, HeaderQuetzalChunk, CMemQuetzalChunk, StacksQuetzalChunk, UMemQuetzalChunk, IFZSContainer, QuetzalReadError, IFZSReadError
-from .screen import ZMachineScreen
+from .screen import ZMachineScreen, TextStyle, ScreenWindow
 from .stack import ZMachineStack, ZMachineStackUnderflow
 from .tokenize import tokenize
 from .z_string import z_string_to_str, z_string, abbreviation_to_ascii, z_string_to_ascii, z_string_to_str_with_next, ZStringParseException
@@ -24,7 +24,7 @@ __all__ = [
     'ZMachineObject', 'ZMachineObjectTable',
     'ZMachineOperandTypes', 'ZMachineOpcodeParser', 'ZMachineOpcodeParserV3', 'ZMachineOpcodeParsingError',
     'QuetzalChunk', 'HeaderQuetzalChunk', 'CMemQuetzalChunk', 'StacksQuetzalChunk', 'UMemQuetzalChunk', 'IFZSContainer',
-    'ZMachineScreen',
+    'ZMachineScreen', 'TextStyle', 'ScreenWindow',
     'ZMachineStack', 'ZMachineStackUnderflow',
     'tokenize',
     'z_string_to_str', 'z_string', 'abbreviation_to_ascii', 'z_string_to_ascii', 'z_string_to_str_with_next',
